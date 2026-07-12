@@ -601,8 +601,8 @@ function formatShort(iso){
 /* ---------------- DASHBOARD ---------------- */
 function computeKpis(){
   const receitasMes = state.movements.filter(isRealizedReceita).reduce((s,m)=>s+m.value,0);
-  const depositosMes = state.movements.filter(m=>m.type==='deposito').reduce((s,m)=>s+m.value,0);
-  const despesasMes = state.movements.filter(m=>m.type==='despesa').reduce((s,m)=>s+m.value,0) + fixedCostsMonthlyTotal();
+  const depositosMes = state.movements.filter(m=>m.type==='deposito' && m.status!=='Cancelado').reduce((s,m)=>s+m.value,0);
+  const despesasMes = state.movements.filter(m=>m.type==='despesa' && m.status!=='Cancelado').reduce((s,m)=>s+m.value,0) + fixedCostsMonthlyTotal();
   const saldo = receitasMes + depositosMes - despesasMes;
   const iva = Math.max(0, Math.round(receitasMes*0.23 - despesasMes*0.23));
   const pendentesEntrada = pendingIncomingMovements();
@@ -616,7 +616,7 @@ function renderDashboard(){
     <div class="kpi-grid">
       <div class="kpi"><div class="kpi-label">Saldo atual</div><div class="kpi-value">${k.saldo.toLocaleString('pt-PT')}€</div><div class="kpi-delta">${k.depositosMes>0 ? 'Inclui '+k.depositosMes.toLocaleString('pt-PT')+'€ em depósitos' : 'Baseado nos movimentos registados'}</div></div>
       <div class="kpi"><div class="kpi-label">Receitas do mês</div><div class="kpi-value pos">${k.receitasMes.toLocaleString('pt-PT')}€</div><div class="kpi-delta">${state.movements.filter(isRealizedReceita).length} registo(s) faturável(eis) e pago(s)</div></div>
-      <div class="kpi"><div class="kpi-label">Despesas do mês</div><div class="kpi-value">${k.despesasMes.toLocaleString('pt-PT')}€</div><div class="kpi-delta">${state.movements.filter(m=>m.type==='despesa').length} registo(s)</div></div>
+      <div class="kpi"><div class="kpi-label">Despesas do mês</div><div class="kpi-value">${k.despesasMes.toLocaleString('pt-PT')}€</div><div class="kpi-delta">${state.movements.filter(m=>m.type==='despesa'&&m.status!=='Cancelado').length} registo(s)</div></div>
       <div class="kpi"><div class="kpi-label">IVA estimado</div><div class="kpi-value warn">${k.iva}€</div><div class="kpi-delta">Sobre receitas faturáveis (23%)</div></div>
       <div class="kpi"><div class="kpi-label">Entradas pendentes</div><div class="kpi-value warn">${k.pendentesEntradaTotal.toLocaleString('pt-PT')}€</div><div class="kpi-delta">${k.pendentesEntradaCount>0 ? k.pendentesEntradaCount+' por confirmar · não conta para saldo nem faturação' : 'Sem entradas por confirmar'}</div></div>
     </div>
@@ -694,7 +694,7 @@ function renderFinanceiro(){
       </div>
     </div>
     <div id="fin-registos" style="${tab==='registos'?'':'display:none'}">
-      <div class="row-card"><table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Cliente</th><th>Tipo</th><th>Valor</th><th>Estado</th></tr></thead><tbody id="finTbody"></tbody></table></div>
+      <div class="row-card"><table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Cliente</th><th>Tipo</th><th>Valor</th><th>Estado</th><th>Ações</th></tr></thead><tbody id="finTbody"></tbody></table></div>
     </div>
     <div id="fin-custos" style="${tab==='custos'?'':'display:none'}">
       <div class="card" style="margin-bottom:16px;">
@@ -732,7 +732,10 @@ function renderCustosTable(){
       <td class="mono" onclick="toggleCustoActive('${c.id}')">dia ${c.dueDay}</td>
       <td onclick="toggleCustoActive('${c.id}')"><span class="pill ${dleft<=3?'overdue':'pending'}">${formatShort(next)}</span></td>
       <td onclick="toggleCustoActive('${c.id}')"><span class="pill ${c.active?'active':'inactive'}">${c.active?'Ativo':'Pausado'}</span></td>
-      <td><button class="btn-ghost" style="padding:5px 10px;font-size:11px;" onclick="deleteCusto('${c.id}')">Apagar</button></td>
+      <td style="white-space:nowrap;">
+        <button class="btn-ghost" style="padding:5px 10px;font-size:11px;" onclick="openModal('editar-custofixo','${c.id}')">Editar</button>
+        <button class="btn-ghost" style="padding:5px 10px;font-size:11px;color:var(--danger);" onclick="deleteCusto('${c.id}')">Apagar</button>
+      </td>
     </tr>`;
   }).join('');
 }
@@ -761,30 +764,70 @@ function renderFinTable(){
   const rows = state.movements.filter(m=> m.desc.toLowerCase().includes(q) || m.client.toLowerCase().includes(q) || m.cat.toLowerCase().includes(q));
   const tbody = document.getElementById('finTbody');
   if(!tbody) return;
-  if(rows.length===0){ tbody.innerHTML = `<tr class="empty-row"><td colspan="7">${state.movements.length===0 ? 'Ainda sem movimentos. Cria o primeiro com "+ Novo movimento".' : 'Nenhum movimento encontrado.'}</td></tr>`; return; }
+  if(rows.length===0){ tbody.innerHTML = `<tr class="empty-row"><td colspan="8">${state.movements.length===0 ? 'Ainda sem movimentos. Cria o primeiro com "+ Novo movimento".' : 'Nenhum movimento encontrado.'}</td></tr>`; return; }
   tbody.innerHTML = rows.map(m=>{
     const typeLabel = m.type==='receita' ? 'Receita' : m.type==='deposito' ? 'Depósito' : 'Despesa';
     const valueColor = m.type==='despesa' ? 'var(--danger)' : m.type==='deposito' ? 'var(--accent)' : 'var(--ok)';
     const sign = m.type==='despesa' ? '-' : '+';
+    const cancelled = m.status==='Cancelado';
+    const statusPill = cancelled
+      ? `<span class="pill" style="opacity:.6;">Cancelado</span>`
+      : `<span class="pill ${m.status==='Pago'?'active':'pending'}" style="cursor:pointer;" onclick="toggleMovementStatus('${m.id}')">${m.status}</span>`;
     return `
-    <tr onclick="toggleMovementStatus('${m.id}')">
+    <tr>
       <td class="mono">${formatShort(m.date)}</td>
-      <td>${m.desc}</td>
-      <td>${m.cat}</td>
-      <td>${m.client}</td>
-      <td>${typeLabel}</td>
-      <td class="mono" style="color:${valueColor}">${sign}${m.value}€</td>
-      <td><span class="pill ${m.status==='Pago'?'active':'pending'}">${m.status}</span></td>
+      <td${cancelled?' style="opacity:.5;text-decoration:line-through;"':''}>${m.desc}</td>
+      <td${cancelled?' style="opacity:.5;"':''}>${m.cat}</td>
+      <td${cancelled?' style="opacity:.5;"':''}>${m.client}</td>
+      <td${cancelled?' style="opacity:.5;"':''}>${typeLabel}</td>
+      <td class="mono" style="color:${valueColor};${cancelled?'opacity:.5;text-decoration:line-through;':''}">${sign}${m.value}€</td>
+      <td>${statusPill}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="openModal('editar-movimento','${m.id}')">Editar</button>
+        ${cancelled
+          ? `<button class="btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="reactivateMovement('${m.id}')">Reativar</button>`
+          : `<button class="btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="cancelMovement('${m.id}')">Cancelar</button>`}
+        <button class="btn-ghost" style="padding:4px 8px;font-size:11px;color:var(--danger);" onclick="deleteMovement('${m.id}')">Apagar</button>
+      </td>
     </tr>`;
   }).join('');
 }
 function toggleMovementStatus(id){
   const m = state.movements.find(x=>x.id===id);
-  if(!m) return;
+  if(!m || m.status==='Cancelado') return;
   m.status = m.status==='Pago' ? 'Pendente' : 'Pago';
   logActivity((m.status==='Pago'?'Marcado como pago: ':'Marcado como pendente: ')+m.desc);
   saveState();
   toast(m.status==='Pago' ? 'Marcado como pago' : 'Marcado como pendente');
+  renderFinTable(); renderNav(); renderDashboard();
+}
+function cancelMovement(id){
+  const m = state.movements.find(x=>x.id===id);
+  if(!m) return;
+  if(!confirm('Cancelar o movimento "'+m.desc+'"? Deixa de contar para o saldo e para a faturação, mas fica registado no histórico.')) return;
+  m.status = 'Cancelado';
+  logActivity('Movimento cancelado: '+m.desc);
+  saveState();
+  toast('Movimento cancelado');
+  renderFinTable(); renderNav(); renderDashboard();
+}
+function reactivateMovement(id){
+  const m = state.movements.find(x=>x.id===id);
+  if(!m) return;
+  m.status = 'Pendente';
+  logActivity('Movimento reativado: '+m.desc);
+  saveState();
+  toast('Movimento reativado como pendente');
+  renderFinTable(); renderNav(); renderDashboard();
+}
+function deleteMovement(id){
+  const m = state.movements.find(x=>x.id===id);
+  if(!m) return;
+  if(!confirm('Apagar definitivamente o movimento "'+m.desc+'"? Esta ação não pode ser desfeita.')) return;
+  state.movements = state.movements.filter(x=>x.id!==id);
+  logActivity('Movimento apagado: '+m.desc);
+  saveState();
+  toast('Movimento apagado');
   renderFinTable(); renderNav(); renderDashboard();
 }
 
@@ -1079,7 +1122,7 @@ function computeMonthlySeries(n){
     const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
     const y=d.getFullYear(), m=d.getMonth();
     const receita = state.movements.filter(mv=>{const dd=new Date(mv.date+'T00:00:00');return dd.getFullYear()===y&&dd.getMonth()===m&&isRealizedReceita(mv);}).reduce((s,mv)=>s+mv.value,0);
-    let despesa = state.movements.filter(mv=>{const dd=new Date(mv.date+'T00:00:00');return dd.getFullYear()===y&&dd.getMonth()===m&&mv.type==='despesa';}).reduce((s,mv)=>s+mv.value,0);
+    let despesa = state.movements.filter(mv=>{const dd=new Date(mv.date+'T00:00:00');return dd.getFullYear()===y&&dd.getMonth()===m&&mv.type==='despesa'&&mv.status!=='Cancelado';}).reduce((s,mv)=>s+mv.value,0);
     const isCurrent = y===now.getFullYear() && m===now.getMonth();
     if(isCurrent) despesa += fixedCostsMonthlyTotal();
     arr.push({label:MONTHS[m].slice(0,3), y, m, receita, despesa, lucro:receita-despesa});
@@ -1150,7 +1193,7 @@ function renderAnalise(){
   const maxAbs = Math.max(...series.map(s=>Math.abs(s.lucro)),1);
 
   const catTotals = {};
-  state.movements.filter(m=>m.type==='despesa').forEach(m=>{ catTotals[m.cat]=(catTotals[m.cat]||0)+m.value; });
+  state.movements.filter(m=>m.type==='despesa' && m.status!=='Cancelado').forEach(m=>{ catTotals[m.cat]=(catTotals[m.cat]||0)+m.value; });
   state.fixedCosts.filter(c=>c.active).forEach(c=>{ catTotals[c.category]=(catTotals[c.category]||0)+c.value; });
   const catRanked = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
   const catMax = Math.max(...catRanked.map(([,v])=>v),1);
@@ -1421,6 +1464,72 @@ function openModal(type, clientId){
     };
   }
 
+  if(type==='editar-movimento'){
+    const m = state.movements.find(x=>x.id===clientId);
+    if(!m){ closeModal(); return; }
+    title.textContent = 'Editar movimento';
+    body.innerHTML = `
+      <div class="field"><label>Descrição</label><input id="f-edesc" value="${m.desc||''}"></div>
+      <div class="field"><label>Cliente</label><select id="f-eclient"><option value="—" ${!m.client||m.client==='—'?'selected':''}>—</option>${CLIENT_NAMES().map(n=>`<option ${n===m.client?'selected':''}>${n}</option>`).join('')}</select></div>
+      <div class="field" id="f-ecat-wrap"><label>Categoria</label><input id="f-ecat" value="${m.cat||''}"></div>
+      <div class="field"><label>Data</label><input id="f-edate" type="date" value="${m.date||todayIso()}"></div>
+      <div class="field"><label>Tipo</label><select id="f-etype">
+        <option value="receita" ${m.type==='receita'?'selected':''}>Receita</option>
+        <option value="despesa" ${m.type==='despesa'?'selected':''}>Despesa</option>
+        <option value="deposito" ${m.type==='deposito'?'selected':''}>Depósito</option>
+      </select></div>
+      <div class="field"><label>Valor (€)</label><input id="f-evalue" type="number" value="${m.value}"></div>
+      <div class="field"><label>Estado</label><select id="f-estatusmov">
+        <option ${m.status==='Pendente'?'selected':''}>Pendente</option>
+        <option ${m.status==='Pago'?'selected':''}>Pago</option>
+        <option ${m.status==='Cancelado'?'selected':''}>Cancelado</option>
+      </select></div>`;
+    const typeSelectE = ()=>document.getElementById('f-etype');
+    const catWrapE = ()=>document.getElementById('f-ecat-wrap');
+    function renderCatFieldE(){
+      const wrap = catWrapE();
+      if(!wrap) return;
+      const prevInput = document.getElementById('f-ecat');
+      const prevValue = prevInput ? prevInput.value : (m.cat||'');
+      if(typeSelectE().value==='despesa'){
+        const isKnown = EXPENSE_CATEGORIES.includes(prevValue);
+        wrap.innerHTML = `<label>Categoria</label>
+          <select id="f-ecat">${EXPENSE_CATEGORIES.map(c=>`<option ${c===prevValue||(c==='Outro'&&prevValue&&!isKnown)?'selected':''}>${c}</option>`).join('')}</select>
+          <div id="f-ecat-outro-wrap" style="margin-top:8px;${(!isKnown&&prevValue)?'':'display:none;'}"><input id="f-ecat-outro" placeholder="Especifica a categoria" value="${!isKnown?prevValue:''}"></div>`;
+        document.getElementById('f-ecat').addEventListener('change', ()=>{
+          document.getElementById('f-ecat-outro-wrap').style.display = document.getElementById('f-ecat').value==='Outro' ? 'block' : 'none';
+        });
+      } else {
+        wrap.innerHTML = `<label>Categoria</label><input id="f-ecat" value="${EXPENSE_CATEGORIES.includes(prevValue)?'':prevValue}">`;
+      }
+    }
+    function getCategoryValueE(){
+      const sel = document.getElementById('f-ecat');
+      if(!sel) return '';
+      if(sel.tagName==='SELECT'){
+        if(sel.value==='Outro') return (document.getElementById('f-ecat-outro')?.value||'').trim() || 'Outro';
+        return sel.value;
+      }
+      return sel.value;
+    }
+    renderCatFieldE();
+    typeSelectE().addEventListener('change', renderCatFieldE);
+    submit.onclick = ()=>{
+      const desc=document.getElementById('f-edesc').value.trim();
+      const value=parseFloat(document.getElementById('f-evalue').value);
+      if(!desc || !value){ toast('Preenche a descrição e o valor'); return; }
+      m.desc = desc;
+      m.client = document.getElementById('f-eclient').value;
+      m.cat = getCategoryValueE()||'Geral';
+      m.date = document.getElementById('f-edate').value||m.date;
+      m.type = typeSelectE().value;
+      m.value = value;
+      m.status = document.getElementById('f-estatusmov').value;
+      logActivity('Movimento editado: '+desc);
+      saveState(); closeModal(); goToView('financeiro'); toast('Movimento atualizado');
+    };
+  }
+
   if(type==='tarefa'){
     title.textContent = 'Nova tarefa';
     body.innerHTML = `
@@ -1626,6 +1735,41 @@ function openModal(type, clientId){
       saveState();
       checkFixedCostAlerts();
       closeModal(); goToView('financeiro'); setFinTab('custos'); toast('Custo fixo adicionado');
+    };
+  }
+
+  if(type==='editar-custofixo'){
+    const c = state.fixedCosts.find(x=>x.id===clientId);
+    if(!c){ closeModal(); return; }
+    title.textContent = 'Editar custo fixo';
+    body.innerHTML = `
+      <div class="field"><label>Nome</label><input id="f-ecfname" value="${c.name||''}"></div>
+      <div class="field"><label>Categoria</label><select id="f-ecfcat">${EXPENSE_CATEGORIES.map(cat=>`<option ${cat===c.category?'selected':''}>${cat}</option>`).join('')}</select>
+        <div id="f-ecfcat-outro-wrap" style="margin-top:8px;${EXPENSE_CATEGORIES.includes(c.category)?'display:none;':''}"><input id="f-ecfcat-outro" placeholder="Especifica a categoria" value="${EXPENSE_CATEGORIES.includes(c.category)?'':(c.category||'')}"></div>
+      </div>
+      <div class="field"><label>Valor mensal (€)</label><input id="f-ecfvalue" type="number" value="${c.value}"></div>
+      <div class="field"><label>Dia de pagamento (1–31)</label><input id="f-ecfday" type="number" min="1" max="31" value="${c.dueDay}"></div>
+      <div class="field"><label>Estado</label><select id="f-ecfactive">
+        <option value="1" ${c.active?'selected':''}>Ativo</option>
+        <option value="0" ${!c.active?'selected':''}>Pausado</option>
+      </select></div>`;
+    document.getElementById('f-ecfcat').addEventListener('change', ()=>{
+      document.getElementById('f-ecfcat-outro-wrap').style.display = document.getElementById('f-ecfcat').value==='Outro' ? 'block' : 'none';
+    });
+    submit.onclick = ()=>{
+      const name=document.getElementById('f-ecfname').value.trim();
+      const value=parseFloat(document.getElementById('f-ecfvalue').value);
+      const day=parseInt(document.getElementById('f-ecfday').value,10);
+      const catSel = document.getElementById('f-ecfcat').value;
+      const category = catSel==='Outro' ? (document.getElementById('f-ecfcat-outro').value.trim()||'Outro') : catSel;
+      if(!name||!value){ toast('Preenche o nome e o valor'); return; }
+      if(!day||day<1||day>31){ toast('Indica um dia de pagamento válido (1–31)'); return; }
+      c.name = name; c.category = category||'Geral'; c.value = value; c.dueDay = day;
+      c.active = document.getElementById('f-ecfactive').value==='1';
+      logActivity('Custo fixo editado: '+name);
+      saveState();
+      checkFixedCostAlerts();
+      closeModal(); goToView('financeiro'); setFinTab('custos'); toast('Custo fixo atualizado');
     };
   }
 }
