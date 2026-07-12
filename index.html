@@ -1,0 +1,1612 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#13151a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title id="pageTitle">Lente Viva — Painel</title>
+<style>
+:root{
+  --bg:#13151a; --surface:#1b1e25; --surface-2:#22262f; --border:#2a2f3a;
+  --text:#eceef2; --muted:#8a90a0; --accent:#3fd9c7; --accent-dim:#28504c;
+  --warn:#f0a860; --danger:#e2685f; --ok:#6fcf7c; --radius:14px;
+  --display:'Space Grotesk',system-ui,sans-serif; --body:'Inter',system-ui,sans-serif; --mono:'IBM Plex Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+html{overscroll-behavior-y:none;}
+body{background:var(--bg);color:var(--text);font-family:var(--body);-webkit-font-smoothing:antialiased;overflow:hidden;overscroll-behavior-y:none;}
+button,input,select{font-family:inherit;}
+button{cursor:pointer;touch-action:manipulation;}
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-thumb{background:var(--surface-2);border-radius:8px;}
+
+.shell{display:flex;height:100vh;}
+.sidebar{width:230px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:20px 14px;}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 8px 22px;}
+.brand svg{width:30px;height:30px;flex-shrink:0;}
+.brand-text{font-family:var(--display);font-weight:600;font-size:15.5px;}
+.brand-text small{display:block;font-family:var(--body);font-weight:400;font-size:10.5px;color:var(--muted);letter-spacing:.4px;text-transform:uppercase;margin-top:2px;}
+.nav{display:flex;flex-direction:column;gap:2px;flex:1;}
+.nav-item{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;color:var(--muted);background:none;border:none;font-size:13.5px;font-weight:500;text-align:left;width:100%;transition:background .15s,color .15s;}
+.nav-item svg{width:18px;height:18px;opacity:.85;flex-shrink:0;}
+.nav-item:hover{background:var(--surface-2);color:var(--text);}
+.nav-item.active{background:var(--accent-dim);color:var(--accent);}
+.nav-badge{margin-left:auto;background:var(--surface-2);color:var(--muted);font-family:var(--mono);font-size:10.5px;padding:1px 6px;border-radius:20px;}
+.nav-item.active .nav-badge{background:rgba(63,217,199,.18);color:var(--accent);}
+.sidebar-foot{border-top:1px solid var(--border);padding-top:12px;margin-top:8px;}
+.user-chip{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:10px;}
+.user-chip:hover{background:var(--surface-2);}
+.avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#2a8f83);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:12px;font-weight:700;color:#0d1a18;flex-shrink:0;}
+.user-name{font-size:12.5px;font-weight:600;}
+.user-role{font-size:10.5px;color:var(--muted);}
+
+.main{flex:1;display:flex;flex-direction:column;min-width:0;}
+.topbar{height:60px;flex-shrink:0;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px;}
+.topbar h1{font-family:var(--display);font-size:18px;font-weight:600;}
+.topbar-sub{font-size:11.5px;color:var(--muted);margin-top:1px;}
+.topbar-right{display:flex;align-items:center;gap:14px;}
+.icon-btn{width:34px;height:34px;border-radius:10px;border:1px solid var(--border);background:var(--surface);display:flex;align-items:center;justify-content:center;position:relative;color:var(--muted);}
+.icon-btn:hover{color:var(--text);border-color:#3a4050;}
+.icon-btn svg{width:16px;height:16px;}
+.dot{position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--warn);border:2px solid var(--surface);display:none;}
+
+.content{flex:1;overflow-y:auto;padding:24px 28px 60px;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;}
+.view{display:none;animation:fade .25s ease;}
+.view.active{display:block;}
+@keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px;}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;}
+.kpi-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;}
+.kpi-value{font-family:var(--mono);font-size:22px;font-weight:600;}
+.kpi-value.pos{color:var(--ok);}
+.kpi-value.warn{color:var(--warn);}
+.kpi-delta{font-size:11px;color:var(--muted);margin-top:6px;}
+
+.grid-2{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-bottom:20px;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;}
+.card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px;flex-wrap:wrap;}
+.card-title{font-family:var(--display);font-size:14px;font-weight:600;}
+.card-link{font-size:11.5px;color:var(--accent);background:none;border:none;}
+.card-link:hover{text-decoration:underline;}
+
+.chart{height:150px;display:flex;align-items:flex-end;gap:8px;padding-top:8px;}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;}
+.bar{width:100%;border-radius:5px 5px 0 0;background:var(--accent-dim);position:relative;overflow:hidden;min-height:2px;}
+.bar::after{content:'';position:absolute;inset:0;background:var(--accent);opacity:.55;}
+.bar-label{font-size:9.5px;color:var(--muted);}
+
+.deadline-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12.5px;background:none;border-left:none;border-right:none;border-top:none;width:100%;text-align:left;color:var(--text);}
+.deadline-row:last-child{border-bottom:none;}
+button.deadline-row:hover{background:var(--surface-2);}
+.tag-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.deadline-name{flex:1;}
+.deadline-date{color:var(--muted);font-family:var(--mono);font-size:11px;}
+
+.activity-row{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);font-size:12.5px;}
+.activity-row:last-child{border-bottom:none;}
+.activity-time{color:var(--muted);font-size:10.5px;white-space:nowrap;font-family:var(--mono);}
+
+.empty-state{color:var(--muted);font-size:12px;padding:18px 4px;text-align:center;}
+
+.quick-actions{display:flex;gap:10px;}
+.qa-btn{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 10px;text-align:center;color:var(--text);font-size:12px;font-weight:500;}
+.qa-btn:hover{border-color:var(--accent);color:var(--accent);}
+.qa-btn svg{width:18px;height:18px;margin:0 auto 8px;display:block;}
+
+.toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap;}
+.tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:3px;}
+.tab-btn{padding:6px 14px;border-radius:8px;border:none;background:none;color:var(--muted);font-size:12.5px;font-weight:500;white-space:nowrap;}
+.tab-btn.active{background:var(--accent-dim);color:var(--accent);}
+.btn-primary{background:var(--accent);color:#0d1a18;border:none;border-radius:10px;padding:9px 16px;font-size:12.5px;font-weight:600;}
+.btn-primary:hover{filter:brightness(1.08);}
+.btn-ghost{background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:9px 16px;font-size:12.5px;font-weight:600;}
+.search-input{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;font-size:12.5px;color:var(--text);width:220px;}
+.search-input::placeholder{color:var(--muted);}
+
+table{width:100%;border-collapse:collapse;}
+th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);padding:0 14px 10px;font-weight:600;}
+td{padding:12px 14px;font-size:12.5px;border-top:1px solid var(--border);}
+tr{cursor:pointer;}
+tr:hover td{background:var(--surface-2);}
+.row-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.empty-row td{text-align:center;color:var(--muted);padding:24px;cursor:default;}
+
+.pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;}
+.pill.active{background:rgba(111,207,124,.15);color:var(--ok);}
+.pill.inactive{background:rgba(138,144,160,.15);color:var(--muted);}
+.pill.pending{background:rgba(240,168,96,.15);color:var(--warn);}
+.pill.overdue{background:rgba(226,104,95,.15);color:var(--danger);}
+
+.avatar-sm{width:24px;height:24px;border-radius:50%;background:var(--surface-2);display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--muted);}
+.mono{font-family:var(--mono);}
+.progress-bar{width:70px;height:5px;background:var(--surface-2);border-radius:6px;overflow:hidden;display:inline-block;vertical-align:middle;}
+.progress-fill{height:100%;background:var(--accent);}
+
+.kanban{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+.kanban-col{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;min-height:160px;transition:background .15s;}
+.kanban-col.drag-over{background:var(--surface-2);border-color:var(--accent);}
+.kanban-col h3{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px;display:flex;justify-content:space-between;}
+.kcard{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:12px;cursor:grab;}
+.kcard:active{cursor:grabbing;}
+.kcard.dragging{opacity:.4;}
+.kcard.done{opacity:.6;}
+.kcard-title{font-weight:600;margin-bottom:6px;}
+.kcard-meta{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:10.5px;}
+.prio{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:5px;}
+.kanban-empty{color:var(--muted);font-size:11px;text-align:center;padding:10px 0;}
+
+.doc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}
+.doc-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 12px;text-align:center;}
+.doc-card svg{width:26px;height:26px;color:var(--accent);margin-bottom:10px;}
+.doc-name{font-size:11.5px;font-weight:500;margin-bottom:3px;word-break:break-word;}
+.doc-meta{font-size:10px;color:var(--muted);}
+
+.settings-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
+.setting-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);gap:10px;}
+.setting-row:last-child{border-bottom:none;}
+.setting-label{font-size:12.5px;}
+.setting-desc{font-size:10.5px;color:var(--muted);margin-top:2px;}
+.toggle{width:38px;height:22px;background:var(--surface-2);border-radius:20px;position:relative;border:1px solid var(--border);flex-shrink:0;}
+.toggle.on{background:var(--accent-dim);}
+.toggle::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;background:var(--muted);border-radius:50%;transition:.2s;}
+.toggle.on::after{background:var(--accent);transform:translateX(16px);}
+
+.notif-panel{position:absolute;top:52px;right:24px;width:320px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.4);display:none;z-index:50;max-height:70vh;overflow-y:auto;}
+.notif-panel.open{display:block;}
+.notif-head{padding:14px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;}
+.notif-item{padding:11px 16px;border-bottom:1px solid var(--border);font-size:12px;display:flex;gap:9px;width:100%;background:none;border-left:none;border-right:none;border-top:none;text-align:left;color:var(--text);}
+.notif-item:hover{background:var(--surface-2);}
+.notif-item:last-child{border-bottom:none;}
+.notif-item .prio{margin-top:4px;}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(8,9,12,.6);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:100;padding:20px;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:100%;max-width:420px;max-height:90vh;overflow-y:auto;}
+.modal-head{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid var(--border);}
+.modal-head h2{font-family:var(--display);font-size:15px;font-weight:600;}
+.modal-close{background:var(--surface-2);border:none;color:var(--muted);width:28px;height:28px;border-radius:8px;font-size:16px;}
+.modal-body{padding:18px 20px;display:flex;flex-direction:column;gap:14px;}
+.field label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;}
+.field input,.field select{width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:9px 11px;font-size:13px;color:var(--text);color-scheme:dark;}
+.field input:focus,.field select:focus{outline:none;border-color:var(--accent);}
+.modal-foot{display:flex;gap:10px;padding:16px 20px;border-top:1px solid var(--border);}
+.modal-foot .btn-primary,.modal-foot .btn-ghost{flex:1;}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface-2);border:1px solid var(--accent);color:var(--text);padding:10px 18px;border-radius:10px;font-size:12.5px;z-index:200;opacity:0;transition:.25s;pointer-events:none;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+.client-detail{margin-top:16px;}
+
+/* ---------------- CALENDAR ---------------- */
+.cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.cal-nav{display:flex;align-items:center;gap:10px;}
+.cal-nav-btn{width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);display:flex;align-items:center;justify-content:center;}
+.cal-title{font-family:var(--display);font-size:15px;font-weight:600;min-width:150px;text-align:center;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
+.cal-dow{font-size:10px;color:var(--muted);text-transform:uppercase;text-align:center;padding-bottom:4px;letter-spacing:.4px;}
+.cal-cell{background:var(--surface);border:1px solid var(--border);border-radius:10px;min-height:64px;padding:6px;font-size:11px;position:relative;color:var(--text);}
+.cal-cell.other-month{opacity:.3;}
+.cal-cell.today{border-color:var(--accent);}
+.cal-cell.selected{background:var(--accent-dim);border-color:var(--accent);}
+.cal-daynum{font-family:var(--mono);font-size:11px;color:var(--muted);}
+.cal-dots{display:flex;gap:3px;flex-wrap:wrap;margin-top:4px;}
+.cal-dot{width:6px;height:6px;border-radius:50%;}
+.cal-day-list{margin-top:16px;}
+.cal-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;font-size:10.5px;color:var(--muted);}
+.cal-legend span{display:inline-flex;align-items:center;gap:5px;}
+
+.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);padding:6px 4px calc(6px + env(safe-area-inset-bottom));z-index:40;}
+.bottom-nav-inner{display:flex;justify-content:space-around;}
+.bnav-item{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;color:var(--muted);font-size:9.5px;font-weight:500;padding:6px 4px;flex:1;position:relative;}
+.bnav-item svg{width:19px;height:19px;}
+.bnav-item.active{color:var(--accent);}
+.bnav-dot{position:absolute;top:2px;right:22%;width:5px;height:5px;border-radius:50%;background:var(--warn);}
+
+@media (max-width:900px){
+  .kpi-grid{grid-template-columns:repeat(2,1fr);}
+  .grid-2{grid-template-columns:1fr;}
+  .kanban{grid-template-columns:repeat(2,1fr);}
+  .settings-grid{grid-template-columns:1fr;}
+}
+@media (max-width:640px){
+  html,body{height:auto;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-y:auto;}
+  .sidebar{display:none;}
+  .bottom-nav{display:block;}
+  .shell{display:block;height:auto;min-height:100vh;}
+  .main{min-height:100vh;}
+  .content{padding:16px 14px 90px;overflow-y:visible;-webkit-overflow-scrolling:auto;overscroll-behavior-y:auto;}
+  .topbar{height:auto;padding:calc(10px + env(safe-area-inset-top)) 16px 12px;position:sticky;top:0;background:var(--bg);z-index:30;}
+  .topbar h1{font-size:16px;}
+  .topbar-sub{font-size:10.5px;}
+  .kpi-grid{grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px;}
+  .kpi{padding:13px 14px;}
+  .kpi-value{font-size:18px;}
+  .grid-2{grid-template-columns:1fr;gap:12px;margin-bottom:14px;}
+  .card{padding:15px 16px;}
+  .toolbar{flex-direction:column;align-items:stretch;gap:10px;}
+  .toolbar .tabs{overflow-x:auto;}
+  .toolbar>div{display:flex;gap:8px;}
+  .search-input{width:auto;flex:1;}
+  .row-card{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  table{min-width:560px;}
+  .kanban{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:78%;overflow-x:auto;gap:10px;padding-bottom:4px;-webkit-overflow-scrolling:touch;}
+  .kanban-col{min-width:0;}
+  .doc-grid{grid-template-columns:repeat(2,1fr);}
+  .settings-grid{grid-template-columns:1fr;}
+  .quick-actions{flex-wrap:wrap;}
+  .qa-btn{flex:1 1 40%;}
+  .notif-panel{right:14px;left:14px;width:auto;top:64px;}
+  .card-head{flex-wrap:wrap;gap:8px;}
+  .cal-cell{min-height:44px;font-size:9.5px;}
+  .cal-title{min-width:auto;font-size:13px;}
+  .field input,.field select,.search-input{font-size:16px;}
+  .icon-btn{width:38px;height:38px;}
+  .bnav-item{padding:8px 4px;min-height:44px;justify-content:center;}
+  .tab-btn{padding:8px 14px;}
+  .modal{max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);width:100%;max-width:none;border-radius:16px 16px 0 0;}
+  .modal-overlay{padding:0;align-items:flex-end;}
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <div class="sidebar">
+    <div class="brand" id="sideBrand">
+      <svg viewBox="0 0 40 40" fill="none">
+        <circle cx="20" cy="20" r="18" stroke="#3fd9c7" stroke-width="1.6"/>
+        <path d="M20 4 L27 16 L20 20 Z" fill="#3fd9c7" opacity=".9"/>
+        <path d="M36 20 L24 27 L20 20 Z" fill="#3fd9c7" opacity=".65"/>
+        <path d="M20 36 L13 24 L20 20 Z" fill="#3fd9c7" opacity=".45"/>
+        <path d="M4 20 L16 13 L20 20 Z" fill="#3fd9c7" opacity=".3"/>
+        <circle cx="20" cy="20" r="4.5" fill="#0d1a18" stroke="#3fd9c7" stroke-width="1.2"/>
+      </svg>
+      <div class="brand-text">Lente Viva<small>Painel Interno</small></div>
+    </div>
+    <nav class="nav" id="sideNav"></nav>
+    <div class="sidebar-foot">
+      <div class="user-chip">
+        <div class="avatar">T</div>
+        <div><div class="user-name">Tomás</div><div class="user-role" id="sideUserRole">Fundador · Lente Viva</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <h1 id="topTitle">Dashboard</h1>
+        <div class="topbar-sub" id="topSub"></div>
+      </div>
+      <div class="topbar-right">
+        <button class="icon-btn" onclick="toggleNotif(event)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+          <span class="dot" id="notifDot"></span>
+        </button>
+      </div>
+    </div>
+
+    <div class="notif-panel" id="notifPanel"></div>
+
+    <div class="content" id="content">
+      <div class="view active" id="view-dashboard"></div>
+      <div class="view" id="view-financeiro"></div>
+      <div class="view" id="view-clientes"></div>
+      <div class="view" id="view-trabalho"></div>
+      <div class="view" id="view-documentos"></div>
+      <div class="view" id="view-analise"></div>
+      <div class="view" id="view-definicoes"></div>
+    </div>
+  </div>
+</div>
+
+<nav class="bottom-nav"><div class="bottom-nav-inner" id="bottomNav"></div></nav>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-head"><h2 id="modalTitle">Novo</h2><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" id="modalSubmit">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------------- ICONS ---------------- */
+const ICONS = {
+  dashboard:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>',
+  financeiro:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v20M17 5.5c0-1.9-2.2-3.5-5-3.5s-5 1.5-5 3.5 2.2 3 5 3.5 5 1.6 5 3.5-2.2 3.5-5 3.5-5-1.6-5-3.5"/></svg>',
+  clientes:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.7-3.6 3.2-6 6.5-6s5.8 2.4 6.5 6"/><circle cx="17.5" cy="8.5" r="2.7"/><path d="M15.5 12.5c2.6.2 4.6 2.3 5 5.5"/></svg>',
+  trabalho:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m4 12 5 5L20 6"/></svg>',
+  documentos:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2h9l4 4v16H6z"/><path d="M14 2v5h5"/></svg>',
+  definicoes:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.5-2-3.4-2.4.7a7.5 7.5 0 0 0-1.7-1L14.8 3h-4l-.5 2.5a7.5 7.5 0 0 0-1.7 1l-2.4-.7-2 3.4L6.2 11a7.6 7.6 0 0 0 0 2l-2 1.5 2 3.4 2.4-.7c.5.4 1.1.7 1.7 1L11 21.9h4l.5-2.5c.6-.3 1.2-.6 1.7-1l2.4.7 2-3.4z"/></svg>',
+  doc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 2h9l4 4v16H6z"/><path d="M14 2v5h5"/></svg>',
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg>',
+  chevL:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>',
+  chevR:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>',
+  analise:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 20V10M10 20V4M17 20v-7"/><path d="M3 20h18"/></svg>'
+};
+const NAV = [
+  {v:'dashboard', label:'Dashboard', mlabel:'Painel'},
+  {v:'financeiro', label:'Financeiro', mlabel:'Financeiro'},
+  {v:'clientes', label:'Clientes', mlabel:'Clientes'},
+  {v:'trabalho', label:'Trabalho', mlabel:'Trabalho'},
+  {v:'documentos', label:'Documentos', mlabel:'Docs'},
+  {v:'analise', label:'Análise', mlabel:'Análise'},
+  {v:'definicoes', label:'Definições', mlabel:'Config'}
+];
+const DOW = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const PRIO_COLOR = {'Alta':'var(--danger)','Média':'var(--warn)','Baixa':'var(--accent)'};
+const EVENT_TYPES = {
+  reuniao:{label:'Reunião',color:'var(--accent)'},
+  entrega:{label:'Entrega',color:'var(--ok)'},
+  pagamento:{label:'Pagamento',color:'var(--danger)'},
+  recebimento:{label:'Recebimento',color:'var(--ok)'},
+  iva:{label:'IVA',color:'var(--warn)'},
+  seg_social:{label:'Segurança Social',color:'var(--warn)'},
+  ferias:{label:'Férias',color:'var(--accent)'},
+  evento:{label:'Evento',color:'var(--muted)'}
+};
+const COLS = [['todo','Por fazer'],['doing','Em desenvolvimento'],['review','Em revisão'],['done','Concluído']];
+
+/* ---------------- STATE (tudo zerado, pronto para dados reais) ---------------- */
+const DEFAULT_STATE = {
+  currentView:'dashboard',
+  finTab:'registos',
+  trabTab:'kanban',
+  openClientId:null,
+  calMonth: new Date().getMonth(),
+  calYear: new Date().getFullYear(),
+  calSelectedDate: null,
+  movements:[],
+  clients:[],
+  tasks:[],
+  docs:[],
+  notifications:[],
+  events:[],
+  fixedCosts:[],
+  settings:{dark:true,notifDeadlines:true,autoBackup:false,pin:false,systemNotif:false,company:{name:'Lente Viva',nif:'',logo:null}},
+  activity:[]
+};
+
+const STORAGE_KEY = 'lenteviva_state_v6'; // v6: reset total de dados de teste
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      const merged = {...structuredClone(DEFAULT_STATE), ...parsed};
+      merged.settings = {...structuredClone(DEFAULT_STATE.settings), ...(parsed.settings||{})};
+      merged.settings.company = {...structuredClone(DEFAULT_STATE.settings.company), ...((parsed.settings||{}).company||{})};
+      return merged;
+    }
+  }catch(e){}
+  return structuredClone(DEFAULT_STATE);
+}
+let state = loadState();
+function saveState(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }catch(e){
+    toast('Armazenamento cheio — este ficheiro pode ser grande demais para guardar localmente.');
+  }
+}
+function uid(prefix){ return prefix + Math.random().toString(36).slice(2,9); }
+function todayIso(){ return new Date().toISOString().slice(0,10); }
+function logActivity(text){
+  state.activity.unshift({time: nowLabel(), text});
+  state.activity = state.activity.slice(0,12);
+}
+function nowLabel(){
+  const d = new Date();
+  return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+function fileToDataUrl(file){
+  return new Promise((resolve,reject)=>{
+    const r = new FileReader();
+    r.onload = ()=>resolve(r.result);
+    r.onerror = ()=>reject(new Error('read failed'));
+    r.readAsDataURL(file);
+  });
+}
+function formatBytes(bytes){
+  if(bytes < 1024) return bytes+' B';
+  if(bytes < 1024*1024) return Math.round(bytes/1024)+' KB';
+  return (bytes/(1024*1024)).toFixed(1)+' MB';
+}
+
+/* ---------------- TOAST ---------------- */
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+/* ---------------- BRAND (empresa) ---------------- */
+function renderBrand(){
+  const company = state.settings.company || {};
+  const name = company.name || 'Lente Viva';
+  const brand = document.getElementById('sideBrand');
+  if(brand){
+    const logoHtml = company.logo
+      ? `<img src="${company.logo}" alt="Logótipo" style="width:30px;height:30px;border-radius:8px;object-fit:cover;flex-shrink:0;">`
+      : `<svg viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="18" stroke="#3fd9c7" stroke-width="1.6"/><path d="M20 4 L27 16 L20 20 Z" fill="#3fd9c7" opacity=".9"/><path d="M36 20 L24 27 L20 20 Z" fill="#3fd9c7" opacity=".65"/><path d="M20 36 L13 24 L20 20 Z" fill="#3fd9c7" opacity=".45"/><path d="M4 20 L16 13 L20 20 Z" fill="#3fd9c7" opacity=".3"/><circle cx="20" cy="20" r="4.5" fill="#0d1a18" stroke="#3fd9c7" stroke-width="1.2"/></svg>`;
+    brand.innerHTML = `${logoHtml}<div class="brand-text">${name}<small>Painel Interno</small></div>`;
+  }
+  const role = document.getElementById('sideUserRole');
+  if(role) role.textContent = 'Fundador · '+name;
+  const pageTitle = document.getElementById('pageTitle');
+  if(pageTitle) pageTitle.textContent = name+' — Painel';
+}
+
+/* ---------------- NAV ---------------- */
+function renderNav(){
+  document.getElementById('sideNav').innerHTML = NAV.map(n=>`
+    <button class="nav-item ${state.currentView===n.v?'active':''}" onclick="goToView('${n.v}')">
+      ${ICONS[n.v]} ${n.label}
+      ${n.v==='financeiro' && pendingMovements()>0 ? `<span class="nav-badge">${pendingMovements()}</span>`:''}
+      ${n.v==='trabalho' && openTasks()>0 ? `<span class="nav-badge">${openTasks()}</span>`:''}
+    </button>`).join('');
+  document.getElementById('bottomNav').innerHTML = NAV.map(n=>`
+    <button class="bnav-item ${state.currentView===n.v?'active':''}" onclick="goToView('${n.v}')">
+      ${ICONS[n.v]}${n.v==='financeiro'&&pendingMovements()>0?'<span class="bnav-dot"></span>':''}
+      ${n.mlabel}
+    </button>`).join('');
+}
+function pendingMovements(){ return state.movements.filter(m=>m.status==='Pendente').length; }
+function openTasks(){ return state.tasks.filter(t=>t.status!=='done').length; }
+
+function goToView(v){
+  state.currentView = v;
+  saveState();
+  const titles = {
+    dashboard:['Dashboard', new Date().toLocaleDateString('pt-PT',{weekday:'long',year:'numeric',month:'long',day:'numeric'})],
+    financeiro:['Financeiro','Receitas, despesas, IVA e relatórios'],
+    clientes:['Clientes','Gestão de clientes e projetos associados'],
+    trabalho:['Trabalho','Tarefas e calendário da equipa'],
+    documentos:['Documentos','Arquivo central de ficheiros'],
+    analise:['Análise da Empresa','Rentabilidade, tendências e risco do negócio'],
+    definicoes:['Definições','Configuração geral da aplicação']
+  };
+  document.getElementById('topTitle').textContent = titles[v][0];
+  document.getElementById('topSub').textContent = titles[v][1];
+  document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
+  document.getElementById('view-'+v).classList.add('active');
+  document.getElementById('notifPanel').classList.remove('open');
+  renderAll();
+  document.getElementById('content').scrollTo({top:0});
+  window.scrollTo({top:0});
+}
+
+/* ---------------- NOTIFICATIONS ---------------- */
+function renderNotif(){
+  const panel = document.getElementById('notifPanel');
+  if(state.notifications.length===0){
+    panel.innerHTML = `<div class="notif-head">Notificações</div><div class="empty-state">Sem notificações por agora.</div>`;
+  } else {
+    panel.innerHTML = `<div class="notif-head">Notificações</div>` + state.notifications.map(n=>`
+      <button class="notif-item" onclick="handleNotifClick('${n.id}')">
+        <span class="prio" style="background:${n.color}"></span>
+        <div><strong>${n.title}</strong><br>${n.body}</div>
+      </button>`).join('');
+  }
+  document.getElementById('notifDot').style.display = state.notifications.length? 'block':'none';
+}
+function handleNotifClick(id){
+  const n = state.notifications.find(x=>x.id===id);
+  if(!n) return;
+  document.getElementById('notifPanel').classList.remove('open');
+  goToView(n.goto);
+}
+function toggleNotif(e){
+  e.stopPropagation();
+  document.getElementById('notifPanel').classList.toggle('open');
+}
+document.addEventListener('click',(e)=>{
+  const panel = document.getElementById('notifPanel');
+  if(panel.classList.contains('open') && !panel.contains(e.target) && !e.target.closest('.icon-btn')){
+    panel.classList.remove('open');
+  }
+});
+
+/* ---------------- CUSTOS FIXOS ---------------- */
+function nextDueDateForDay(day){
+  const now = new Date(); now.setHours(0,0,0,0);
+  const y = now.getFullYear(), m = now.getMonth();
+  const lastDayThisMonth = new Date(y, m+1, 0).getDate();
+  const clampedThis = Math.min(day, lastDayThisMonth);
+  let candidate = new Date(y, m, clampedThis);
+  if(candidate < now){
+    const lastDayNext = new Date(y, m+2, 0).getDate();
+    const clampedNext = Math.min(day, lastDayNext);
+    candidate = new Date(y, m+1, clampedNext);
+  }
+  return candidate.toISOString().slice(0,10);
+}
+function daysUntil(iso){
+  const now = new Date(); now.setHours(0,0,0,0);
+  const d = new Date(iso+'T00:00:00');
+  return Math.round((d-now)/86400000);
+}
+function monthKey(){
+  const n = new Date();
+  return n.getFullYear()+'-'+n.getMonth();
+}
+function checkFixedCostAlerts(){
+  let changed = false;
+  state.fixedCosts.filter(c=>c.active).forEach(c=>{
+    const nextDate = nextDueDateForDay(c.dueDay);
+    const dleft = daysUntil(nextDate);
+    const notifId = 'fc-'+c.id+'-'+monthKey();
+    const already = state.notifications.some(n=>n.id===notifId);
+    if(dleft>=0 && dleft<=3 && !already){
+      const newNotif = {
+        id:notifId,
+        color: dleft===0 ? 'var(--danger)' : 'var(--warn)',
+        title: dleft===0 ? 'Custo fixo vence hoje' : 'Custo fixo em '+dleft+' dia(s)',
+        body: c.name+' — '+c.value+'€',
+        goto:'financeiro'
+      };
+      state.notifications.unshift(newNotif);
+      fireSystemNotification(newNotif);
+      changed = true;
+    }
+  });
+  if(changed) saveState();
+}
+function fixedCostsMonthlyTotal(){
+  return state.fixedCosts.filter(c=>c.active).reduce((s,c)=>s+c.value,0);
+}
+
+/* ---------------- shared: upcoming items (tasks + events + custos fixos) ---------------- */
+function getUpcoming(limit){
+  const items = [];
+  state.tasks.filter(t=>t.status!=='done' && t.due).forEach(t=>{
+    items.push({date:t.due, name:t.title, color:PRIO_COLOR[t.priority]||'var(--muted)', goto:'trabalho'});
+  });
+  state.events.forEach(ev=>{
+    items.push({date:ev.date, name:ev.title, color:EVENT_TYPES[ev.type]?.color||'var(--muted)', goto:'trabalho'});
+  });
+  state.fixedCosts.filter(c=>c.active).forEach(c=>{
+    items.push({date:nextDueDateForDay(c.dueDay), name:c.name+' (custo fixo)', color:'var(--warn)', goto:'financeiro'});
+  });
+  items.sort((a,b)=> (a.date||'9999').localeCompare(b.date||'9999'));
+  return items.slice(0, limit||6);
+}
+function formatShort(iso){
+  if(!iso) return 'sem data';
+  const d = new Date(iso+'T00:00:00');
+  if(isNaN(d)) return iso;
+  const meses=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const today = new Date(); today.setHours(0,0,0,0);
+  const diff = Math.round((d-today)/86400000);
+  if(diff===0) return 'hoje';
+  if(diff<0) return 'atrasado';
+  return String(d.getDate()).padStart(2,'0')+' '+meses[d.getMonth()];
+}
+
+/* ---------------- DASHBOARD ---------------- */
+function computeKpis(){
+  const receitasMes = state.movements.filter(m=>m.type==='receita').reduce((s,m)=>s+m.value,0);
+  const depositosMes = state.movements.filter(m=>m.type==='deposito').reduce((s,m)=>s+m.value,0);
+  const despesasMes = state.movements.filter(m=>m.type==='despesa').reduce((s,m)=>s+m.value,0) + fixedCostsMonthlyTotal();
+  const saldo = receitasMes + depositosMes - despesasMes;
+  const iva = Math.max(0, Math.round(receitasMes*0.23 - despesasMes*0.23));
+  return {receitasMes,despesasMes,saldo,iva,depositosMes};
+}
+function renderDashboard(){
+  const k = computeKpis();
+  const upcoming = getUpcoming(5);
+  document.getElementById('view-dashboard').innerHTML = `
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-label">Saldo atual</div><div class="kpi-value">${k.saldo.toLocaleString('pt-PT')}€</div><div class="kpi-delta">${k.depositosMes>0 ? 'Inclui '+k.depositosMes.toLocaleString('pt-PT')+'€ em depósitos' : 'Baseado nos movimentos registados'}</div></div>
+      <div class="kpi"><div class="kpi-label">Receitas do mês</div><div class="kpi-value pos">${k.receitasMes.toLocaleString('pt-PT')}€</div><div class="kpi-delta">${state.movements.filter(m=>m.type==='receita').length} registo(s) faturável(eis)</div></div>
+      <div class="kpi"><div class="kpi-label">Despesas do mês</div><div class="kpi-value">${k.despesasMes.toLocaleString('pt-PT')}€</div><div class="kpi-delta">${state.movements.filter(m=>m.type==='despesa').length} registo(s)</div></div>
+      <div class="kpi"><div class="kpi-label">IVA estimado</div><div class="kpi-value warn">${k.iva}€</div><div class="kpi-delta">Sobre receitas faturáveis (23%)</div></div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head"><div class="card-title">Receitas vs Despesas</div><button class="card-link" onclick="goToView('financeiro');setFinTab('relatorios')">Ver relatório →</button></div>
+        ${state.movements.length===0
+          ? `<div class="empty-state">Ainda sem movimentos financeiros. Regista a primeira receita ou despesa em Financeiro.</div>`
+          : `<div class="chart">${renderMiniChart()}</div>`}
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-title">Próximos prazos</div></div>
+        ${upcoming.length===0
+          ? `<div class="empty-state">Sem tarefas ou eventos agendados.</div>`
+          : upcoming.map(u=>`<button class="deadline-row" onclick="goToView('${u.goto}')"><span class="tag-dot" style="background:${u.color}"></span><span class="deadline-name">${u.name}</span><span class="deadline-date">${formatShort(u.date)}</span></button>`).join('')}
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head"><div class="card-title">Atalhos rápidos</div></div>
+        <div class="quick-actions">
+          <button class="qa-btn" onclick="openModal('receita')">${ICONS.plus}Receita</button>
+          <button class="qa-btn" onclick="openModal('despesa')">${ICONS.plus}Despesa</button>
+          <button class="qa-btn" onclick="openModal('deposito')">${ICONS.plus}Depósito</button>
+          <button class="qa-btn" onclick="openModal('tarefa')">${ICONS.plus}Tarefa</button>
+          <button class="qa-btn" onclick="openModal('projeto')">${ICONS.plus}Projeto</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-title">Última atividade</div></div>
+        ${state.activity.length===0
+          ? `<div class="empty-state">Ainda sem atividade registada.</div>`
+          : state.activity.map(a=>`<div class="activity-row"><span class="activity-time">${a.time}</span><span>${a.text}</span></div>`).join('')}
+      </div>
+    </div>`;
+}
+function renderMiniChart(){
+  const months = [];
+  const now = new Date();
+  for(let i=5;i>=0;i--){
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    months.push({y:d.getFullYear(), m:d.getMonth(), label:MONTHS[d.getMonth()].slice(0,3)});
+  }
+  const totals = months.map(mo=>{
+    return state.movements.filter(mv=>{
+      const d = new Date(mv.date+'T00:00:00');
+      return d.getFullYear()===mo.y && d.getMonth()===mo.m && mv.type==='receita';
+    }).reduce((s,mv)=>s+mv.value,0);
+  });
+  const max = Math.max(...totals, 1);
+  return months.map((mo,i)=>`<div class="bar-col"><div class="bar" style="height:${Math.max(4,(totals[i]/max)*100)}%"></div><div class="bar-label">${mo.label}</div></div>`).join('');
+}
+
+/* ---------------- FINANCEIRO ---------------- */
+function setFinTab(tab){ state.finTab = tab; saveState(); renderFinanceiro(); }
+function renderFinanceiro(){
+  const tab = state.finTab;
+  const totalPorCliente = {};
+  state.movements.filter(m=>m.type==='receita').forEach(m=>{ totalPorCliente[m.client]=(totalPorCliente[m.client]||0)+m.value; });
+  const ranking = Object.entries(totalPorCliente).sort((a,b)=>b[1]-a[1]);
+
+  document.getElementById('view-financeiro').innerHTML = `
+    <div class="toolbar">
+      <div class="tabs">
+        <button class="tab-btn ${tab==='registos'?'active':''}" onclick="setFinTab('registos')">Registos</button>
+        <button class="tab-btn ${tab==='custos'?'active':''}" onclick="setFinTab('custos')">Custos Fixos</button>
+        <button class="tab-btn ${tab==='relatorios'?'active':''}" onclick="setFinTab('relatorios')">Relatórios</button>
+      </div>
+      <div>
+        ${tab==='custos'
+          ? `<button class="btn-primary" onclick="openModal('custofixo')">+ Novo custo fixo</button>`
+          : tab==='registos'
+          ? `<input class="search-input" id="finSearch" placeholder="Pesquisar movimento..." oninput="renderFinTable()"><button class="btn-primary" onclick="openModal('movimento')">+ Novo movimento</button>`
+          : ``}
+      </div>
+    </div>
+    <div id="fin-registos" style="${tab==='registos'?'':'display:none'}">
+      <div class="row-card"><table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Cliente</th><th>Tipo</th><th>Valor</th><th>Estado</th></tr></thead><tbody id="finTbody"></tbody></table></div>
+    </div>
+    <div id="fin-custos" style="${tab==='custos'?'':'display:none'}">
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-head"><div class="card-title">Total mensal comprometido</div></div>
+        <div class="kpi-value warn">${fixedCostsMonthlyTotal().toLocaleString('pt-PT')}€ <span style="font-size:11px;color:var(--muted);font-weight:400;">/ mês, em custos ativos</span></div>
+      </div>
+      <div class="row-card"><table><thead><tr><th>Nome</th><th>Categoria</th><th>Valor</th><th>Dia de pagamento</th><th>Próximo pagamento</th><th>Estado</th><th></th></tr></thead><tbody id="custosTbody"></tbody></table></div>
+    </div>
+    <div id="fin-relatorios" style="${tab==='relatorios'?'':'display:none'}">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><div class="card-title">Receita mensal</div></div>
+          ${state.movements.length===0 ? `<div class="empty-state">Sem dados suficientes ainda.</div>` : `<div class="chart">${renderMiniChart()}</div>`}
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">Clientes mais rentáveis</div></div>
+          ${ranking.length ? ranking.map(([name,val])=>`<button class="deadline-row" onclick="goToView('clientes');openClientByName('${name.replace(/'/g,"\\'")}')"><span class="deadline-name">${name}</span><span class="deadline-date mono">${val}€</span></button>`).join('') : '<div class="empty-state">Sem receitas registadas ainda.</div>'}
+        </div>
+      </div>
+    </div>`;
+  if(tab==='registos') renderFinTable();
+  if(tab==='custos') renderCustosTable();
+}
+function renderCustosTable(){
+  const tbody = document.getElementById('custosTbody');
+  if(!tbody) return;
+  if(state.fixedCosts.length===0){ tbody.innerHTML = `<tr class="empty-row"><td colspan="7">Ainda sem custos fixos. Cria o primeiro com "+ Novo custo fixo".</td></tr>`; return; }
+  tbody.innerHTML = state.fixedCosts.map(c=>{
+    const next = nextDueDateForDay(c.dueDay);
+    const dleft = daysUntil(next);
+    return `<tr>
+      <td onclick="toggleCustoActive('${c.id}')"><strong>${c.name}</strong></td>
+      <td onclick="toggleCustoActive('${c.id}')">${c.category||'—'}</td>
+      <td class="mono" onclick="toggleCustoActive('${c.id}')">${c.value}€</td>
+      <td class="mono" onclick="toggleCustoActive('${c.id}')">dia ${c.dueDay}</td>
+      <td onclick="toggleCustoActive('${c.id}')"><span class="pill ${dleft<=3?'overdue':'pending'}">${formatShort(next)}</span></td>
+      <td onclick="toggleCustoActive('${c.id}')"><span class="pill ${c.active?'active':'inactive'}">${c.active?'Ativo':'Pausado'}</span></td>
+      <td><button class="btn-ghost" style="padding:5px 10px;font-size:11px;" onclick="deleteCusto('${c.id}')">Apagar</button></td>
+    </tr>`;
+  }).join('');
+}
+function toggleCustoActive(id){
+  const c = state.fixedCosts.find(x=>x.id===id);
+  if(!c) return;
+  c.active = !c.active;
+  logActivity((c.active?'Reativado':'Pausado')+' custo fixo: '+c.name);
+  saveState();
+  toast(c.active ? 'Custo fixo ativo' : 'Custo fixo pausado');
+  renderCustosTable(); renderDashboard();
+}
+function deleteCusto(id){
+  const c = state.fixedCosts.find(x=>x.id===id);
+  if(!c) return;
+  if(!confirm('Apagar o custo fixo "'+c.name+'"?')) return;
+  state.fixedCosts = state.fixedCosts.filter(x=>x.id!==id);
+  state.notifications = state.notifications.filter(n=>!n.id.startsWith('fc-'+id+'-'));
+  logActivity('Custo fixo apagado: '+c.name);
+  saveState();
+  toast('Custo fixo apagado');
+  renderCustosTable(); renderDashboard();
+}
+function renderFinTable(){
+  const q = (document.getElementById('finSearch')?.value || '').toLowerCase();
+  const rows = state.movements.filter(m=> m.desc.toLowerCase().includes(q) || m.client.toLowerCase().includes(q) || m.cat.toLowerCase().includes(q));
+  const tbody = document.getElementById('finTbody');
+  if(!tbody) return;
+  if(rows.length===0){ tbody.innerHTML = `<tr class="empty-row"><td colspan="7">${state.movements.length===0 ? 'Ainda sem movimentos. Cria o primeiro com "+ Novo movimento".' : 'Nenhum movimento encontrado.'}</td></tr>`; return; }
+  tbody.innerHTML = rows.map(m=>{
+    const typeLabel = m.type==='receita' ? 'Receita' : m.type==='deposito' ? 'Depósito' : 'Despesa';
+    const valueColor = m.type==='despesa' ? 'var(--danger)' : m.type==='deposito' ? 'var(--accent)' : 'var(--ok)';
+    const sign = m.type==='despesa' ? '-' : '+';
+    return `
+    <tr onclick="toggleMovementStatus('${m.id}')">
+      <td class="mono">${formatShort(m.date)}</td>
+      <td>${m.desc}</td>
+      <td>${m.cat}</td>
+      <td>${m.client}</td>
+      <td>${typeLabel}${m.type==='deposito'?' <span style="color:var(--muted);font-size:10px;">(não faturável)</span>':''}</td>
+      <td class="mono" style="color:${valueColor}">${sign}${m.value}€</td>
+      <td><span class="pill ${m.status==='Pago'?'active':'pending'}">${m.status}</span></td>
+    </tr>`;
+  }).join('');
+}
+function toggleMovementStatus(id){
+  const m = state.movements.find(x=>x.id===id);
+  if(!m) return;
+  m.status = m.status==='Pago' ? 'Pendente' : 'Pago';
+  logActivity((m.status==='Pago'?'Marcado como pago: ':'Marcado como pendente: ')+m.desc);
+  saveState();
+  toast(m.status==='Pago' ? 'Marcado como pago' : 'Marcado como pendente');
+  renderFinTable(); renderNav();
+}
+
+/* ---------------- CLIENTES ---------------- */
+function renderClientes(){
+  document.getElementById('view-clientes').innerHTML = `
+    <div class="toolbar">
+      <div class="tabs"><button class="tab-btn active">Todos (${state.clients.length})</button></div>
+      <div>
+        <input class="search-input" id="cliSearch" placeholder="Pesquisar cliente..." oninput="renderClientTable()">
+        <button class="btn-primary" onclick="openModal('cliente')">+ Novo cliente</button>
+      </div>
+    </div>
+    <div class="row-card" style="margin-bottom:16px;">
+      <table><thead><tr><th>Cliente</th><th>Projeto ativo</th><th>Responsável</th><th>Faturado (total)</th><th>Estado</th><th></th></tr></thead><tbody id="cliTbody"></tbody></table>
+    </div>
+    <div id="clientDetailWrap"></div>`;
+  renderClientTable();
+  if(state.openClientId) renderClientDetail(state.openClientId);
+}
+function billedTotal(clientName){
+  return state.movements.filter(m=>m.client===clientName && m.type==='receita').reduce((s,m)=>s+m.value,0);
+}
+function renderClientTable(){
+  const q = (document.getElementById('cliSearch')?.value || '').toLowerCase();
+  const rows = state.clients.filter(c=>c.name.toLowerCase().includes(q) || (c.segment||'').toLowerCase().includes(q));
+  const tbody = document.getElementById('cliTbody');
+  if(!tbody) return;
+  if(rows.length===0){ tbody.innerHTML = `<tr class="empty-row"><td colspan="6">${state.clients.length===0 ? 'Ainda sem clientes. Cria o primeiro com "+ Novo cliente".' : 'Nenhum cliente encontrado.'}</td></tr>`; return; }
+  tbody.innerHTML = rows.map(c=>`
+    <tr onclick="openClient('${c.id}')">
+      <td><strong>${c.name}</strong><br><span style="color:var(--muted);font-size:11px;">${c.segment||'—'}</span></td>
+      <td>${c.project||'Sem projeto ativo'}</td>
+      <td>${c.responsible ? `<span class="avatar-sm">${responsibleInitials(c.responsible)}</span> <span style="font-size:11.5px;">${c.responsible}</span>` : '<span style="color:var(--muted);font-size:11.5px;">—</span>'}</td>
+      <td class="mono">${billedTotal(c.name).toLocaleString('pt-PT')}€</td>
+      <td><span class="pill ${c.status==='Ativo'?'active':'pending'}">${c.status}</span></td>
+      <td style="color:var(--muted)">→</td>
+    </tr>`).join('');
+}
+function responsibleInitials(name){
+  return name.trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+}
+function openClient(id){
+  state.openClientId = id;
+  saveState();
+  renderClientDetail(id);
+  setTimeout(()=>document.getElementById('clientDetailWrap').scrollIntoView({behavior:'smooth',block:'start'}), 30);
+}
+function openClientByName(name){
+  const c = state.clients.find(x=>x.name===name);
+  if(c) openClient(c.id);
+}
+function renderClientDetail(id){
+  const c = state.clients.find(x=>x.id===id);
+  const wrap = document.getElementById('clientDetailWrap');
+  if(!c || !wrap){ if(wrap) wrap.innerHTML=''; return; }
+  const cliTab = c._tab || 'info';
+  const docs = state.docs.filter(d=>d.clientId===c.id);
+  wrap.innerHTML = `
+    <div class="card client-detail">
+      <div class="card-head">
+        <div class="card-title">${c.name} — ficha do cliente</div>
+        <div class="tabs">
+          <button class="tab-btn ${cliTab==='info'?'active':''}" onclick="setClientTab('${c.id}','info')">Informação</button>
+          <button class="tab-btn ${cliTab==='projetos'?'active':''}" onclick="setClientTab('${c.id}','projetos')">Projetos</button>
+          <button class="tab-btn ${cliTab==='docs'?'active':''}" onclick="setClientTab('${c.id}','docs')">Documentos</button>
+        </div>
+        ${cliTab==='info' ? `<button class="card-link" onclick="openModal('editar-cliente','${c.id}')">Editar</button>` : ''}
+      </div>
+      <div id="cli-info" style="${cliTab==='info'?'':'display:none'}">
+        <div class="settings-grid">
+          <div class="setting-row"><div class="setting-label">Responsável</div><div>${c.responsible||'—'}</div></div>
+          <div class="setting-row"><div class="setting-label">NIF</div><div class="mono">${c.nif||'—'}</div></div>
+          <div class="setting-row"><div class="setting-label">Email</div><div>${c.email||'—'}</div></div>
+          <div class="setting-row"><div class="setting-label">Telefone</div><div class="mono">${c.phone||'—'}</div></div>
+          <div class="setting-row"><div class="setting-label">Morada</div><div>${c.address||'—'}</div></div>
+        </div>
+      </div>
+      <div id="cli-projetos" style="${cliTab==='projetos'?'':'display:none'}">
+        ${(c.projects&&c.projects.length) ? c.projects.map(p=>`<div class="deadline-row"><span class="deadline-name">${p.name}</span><span class="progress-bar"><span class="progress-fill" style="width:${p.pct}%"></span></span><span class="deadline-date">${p.pct}%</span></div>`).join('') : '<div class="empty-state">Sem projetos associados ainda.</div>'}
+      </div>
+      <div id="cli-docs" style="${cliTab==='docs'?'':'display:none'}">
+        <div style="margin-bottom:10px;"><button class="btn-primary" style="padding:7px 14px;" onclick="openModal('documento','${c.id}')">+ Adicionar documento</button></div>
+        <div class="doc-grid">
+          ${docs.length ? docs.map(d=>`<div class="doc-card" onclick="openDoc('${d.id}')" style="cursor:pointer;">${ICONS.doc}<div class="doc-name">${d.name}</div><div class="doc-meta">${d.type}${d.size?' · '+d.size:''}</div></div>`).join('') : '<div class="empty-state" style="grid-column:1/-1;">Sem documentos associados.</div>'}
+        </div>
+      </div>
+    </div>`;
+}
+function setClientTab(id, tab){
+  const c = state.clients.find(x=>x.id===id);
+  if(c) c._tab = tab;
+  renderClientDetail(id);
+}
+
+/* ---------------- TRABALHO ---------------- */
+function setTrabTab(tab){ state.trabTab = tab; saveState(); renderTrabalho(); }
+function renderTrabalho(){
+  const tab = state.trabTab;
+  document.getElementById('view-trabalho').innerHTML = `
+    <div class="toolbar">
+      <div class="tabs">
+        <button class="tab-btn ${tab==='kanban'?'active':''}" onclick="setTrabTab('kanban')">Kanban</button>
+        <button class="tab-btn ${tab==='lista'?'active':''}" onclick="setTrabTab('lista')">Lista</button>
+        <button class="tab-btn ${tab==='calendario'?'active':''}" onclick="setTrabTab('calendario')">Calendário</button>
+      </div>
+      ${tab==='calendario'
+        ? `<button class="btn-primary" onclick="openModal('evento')">+ Novo evento</button>`
+        : `<button class="btn-primary" onclick="openModal('tarefa')">+ Nova tarefa</button>`}
+    </div>
+    <div id="trab-kanban" style="${tab==='kanban'?'':'display:none'}">
+      <div class="kanban" id="kanbanCols"></div>
+    </div>
+    <div id="trab-lista" style="${tab==='lista'?'':'display:none'}">
+      <div class="row-card"><table><thead><tr><th>Tarefa</th><th>Cliente</th><th>Prioridade</th><th>Prazo</th><th>Estado</th></tr></thead><tbody id="listaTbody"></tbody></table></div>
+    </div>
+    <div id="trab-calendario" style="${tab==='calendario'?'':'display:none'}">
+      <div class="card" id="calendarCard"></div>
+    </div>`;
+  if(tab==='kanban') renderKanban();
+  if(tab==='lista') renderListaTable();
+  if(tab==='calendario') renderCalendar();
+}
+function statusLabel(s){ return {todo:'Por fazer',doing:'Em curso',review:'Em revisão',done:'Concluído'}[s]; }
+function renderListaTable(){
+  const tbody = document.getElementById('listaTbody');
+  if(!tbody) return;
+  if(state.tasks.length===0){ tbody.innerHTML = `<tr class="empty-row"><td colspan="5">Ainda sem tarefas. Cria a primeira com "+ Nova tarefa".</td></tr>`; return; }
+  tbody.innerHTML = state.tasks.map(t=>`<tr onclick="cycleTaskStatus('${t.id}')"><td>${t.title}</td><td>${t.client||'—'}</td><td><span class="pill ${t.priority==='Alta'?'overdue':t.priority==='Média'?'pending':'active'}">${t.priority}</span></td><td class="mono">${formatShort(t.due)}</td><td><span class="pill ${t.status==='done'?'active':'pending'}">${statusLabel(t.status)}</span></td></tr>`).join('');
+}
+function cycleTaskStatus(id){
+  const order = ['todo','doing','review','done'];
+  const t = state.tasks.find(x=>x.id===id);
+  if(!t) return;
+  t.status = order[(order.indexOf(t.status)+1)%order.length];
+  logActivity('Tarefa "'+t.title+'" movida para '+statusLabel(t.status));
+  saveState();
+  toast('Tarefa movida para: '+statusLabel(t.status));
+  renderTrabalho(); renderNav();
+}
+function renderKanban(){
+  const el = document.getElementById('kanbanCols');
+  el.innerHTML = COLS.map(([key,label])=>{
+    const items = state.tasks.filter(t=>t.status===key);
+    return `<div class="kanban-col" data-col="${key}" ondragover="onDragOver(event)" ondrop="onDrop(event,'${key}')" ondragleave="onDragLeave(event)">
+      <h3>${label} <span>${items.length}</span></h3>
+      ${items.length ? items.map(t=>`
+        <div class="kcard ${key==='done'?'done':''}" draggable="true" data-id="${t.id}" ondragstart="onDragStart(event,'${t.id}')" ondragend="onDragEnd(event)" onclick="cycleTaskStatus('${t.id}')">
+          <div class="kcard-title">${t.title}</div>
+          <div class="kcard-meta"><span><span class="prio" style="background:${PRIO_COLOR[t.priority]}"></span>${t.priority}</span><span>${formatShort(t.due)}</span></div>
+        </div>`).join('') : `<div class="kanban-empty">Sem tarefas</div>`}
+    </div>`;
+  }).join('');
+}
+let dragId = null;
+function onDragStart(e,id){ dragId=id; e.target.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; }
+function onDragEnd(e){ e.target.classList.remove('dragging'); }
+function onDragOver(e){ e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+function onDragLeave(e){ e.currentTarget.classList.remove('drag-over'); }
+function onDrop(e,col){
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  const t = state.tasks.find(x=>x.id===dragId);
+  if(t){ t.status = col; logActivity('Tarefa "'+t.title+'" movida para '+statusLabel(col)); saveState(); toast('Tarefa movida para: '+statusLabel(col)); }
+  renderKanban(); renderNav();
+}
+
+/* ---------------- CALENDÁRIO (real, ligado a tarefas e eventos) ---------------- */
+function calItemsForDate(iso){
+  const items = [];
+  const [y,m,d] = iso.split('-').map(Number);
+  state.tasks.filter(t=>t.due===iso).forEach(t=> items.push({title:t.title, color:PRIO_COLOR[t.priority]||'var(--muted)', kind:'Tarefa'}));
+  state.events.filter(e=>e.date===iso).forEach(e=> items.push({title:e.title, color:EVENT_TYPES[e.type]?.color||'var(--muted)', kind:EVENT_TYPES[e.type]?.label||'Evento'}));
+  state.fixedCosts.filter(c=>c.active && c.dueDay===d).forEach(c=> items.push({title:c.name+' — '+c.value+'€', color:'var(--warn)', kind:'Custo fixo'}));
+  return items;
+}
+function calChangeMonth(delta){
+  let m = state.calMonth + delta, y = state.calYear;
+  if(m<0){m=11;y--;} if(m>11){m=0;y++;}
+  state.calMonth=m; state.calYear=y; saveState();
+  renderCalendar();
+}
+function calSelectDate(iso){
+  state.calSelectedDate = state.calSelectedDate===iso ? null : iso;
+  saveState();
+  renderCalendar();
+}
+function renderCalendar(){
+  const card = document.getElementById('calendarCard');
+  if(!card) return;
+  const y = state.calYear, m = state.calMonth;
+  const first = new Date(y,m,1);
+  const startDow = (first.getDay()+6)%7; // Monday=0
+  const daysInMonth = new Date(y,m+1,0).getDate();
+  const daysInPrevMonth = new Date(y,m,0).getDate();
+  const todayIsoStr = todayIso();
+
+  let cells = '';
+  for(let i=0;i<startDow;i++){
+    const dayNum = daysInPrevMonth - startDow + 1 + i;
+    cells += `<div class="cal-cell other-month"><div class="cal-daynum">${dayNum}</div></div>`;
+  }
+  for(let d=1; d<=daysInMonth; d++){
+    const iso = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const items = calItemsForDate(iso);
+    const isToday = iso===todayIsoStr;
+    const isSelected = iso===state.calSelectedDate;
+    cells += `<div class="cal-cell ${isToday?'today':''} ${isSelected?'selected':''}" onclick="calSelectDate('${iso}')" style="cursor:pointer;">
+      <div class="cal-daynum">${d}</div>
+      <div class="cal-dots">${items.slice(0,4).map(it=>`<span class="cal-dot" style="background:${it.color}"></span>`).join('')}</div>
+    </div>`;
+  }
+  const totalCells = startDow + daysInMonth;
+  const trailing = (7 - (totalCells % 7)) % 7;
+  for(let i=1;i<=trailing;i++){
+    cells += `<div class="cal-cell other-month"><div class="cal-daynum">${i}</div></div>`;
+  }
+
+  const selectedItems = state.calSelectedDate ? calItemsForDate(state.calSelectedDate) : [];
+
+  card.innerHTML = `
+    <div class="cal-head">
+      <div class="card-title">${MONTHS[m]} ${y}</div>
+      <div class="cal-nav">
+        <button class="cal-nav-btn" onclick="calChangeMonth(-1)">${ICONS.chevL}</button>
+        <button class="btn-ghost" style="padding:5px 10px;font-size:11px;" onclick="calGoToday()">Hoje</button>
+        <button class="cal-nav-btn" onclick="calChangeMonth(1)">${ICONS.chevR}</button>
+      </div>
+    </div>
+    <div class="cal-grid">
+      ${DOW.map(d=>`<div class="cal-dow">${d}</div>`).join('')}
+      ${cells}
+    </div>
+    <div class="cal-legend">
+      ${Object.entries(EVENT_TYPES).map(([k,v])=>`<span><span class="cal-dot" style="background:${v.color}"></span>${v.label}</span>`).join('')}
+    </div>
+    <div class="cal-day-list">
+      ${state.calSelectedDate ? `
+        <div class="card-title" style="margin-bottom:8px;font-size:12.5px;">${new Date(state.calSelectedDate+'T00:00:00').toLocaleDateString('pt-PT',{day:'2-digit',month:'long'})}</div>
+        ${selectedItems.length ? selectedItems.map(it=>`<div class="deadline-row"><span class="tag-dot" style="background:${it.color}"></span><span class="deadline-name">${it.title}</span><span class="deadline-date">${it.kind}</span></div>`).join('') : `<div class="empty-state">Sem tarefas ou eventos neste dia.</div>`}
+      ` : `<div class="empty-state">Seleciona um dia para veres os detalhes.</div>`}
+    </div>`;
+}
+function calGoToday(){
+  const n = new Date();
+  state.calMonth = n.getMonth(); state.calYear = n.getFullYear(); state.calSelectedDate = todayIso();
+  saveState(); renderCalendar();
+}
+
+/* ---------------- DOCUMENTOS ---------------- */
+function renderDocumentos(){
+  document.getElementById('view-documentos').innerHTML = `
+    <div class="toolbar">
+      <div class="tabs"><button class="tab-btn active">Todos</button></div>
+      <div>
+        <input class="search-input" id="docSearch" placeholder="Pesquisar documento..." oninput="renderDocGrid()">
+        <button class="btn-primary" onclick="openModal('documento')">+ Carregar ficheiro</button>
+      </div>
+    </div>
+    <div class="doc-grid" id="docGrid"></div>`;
+  renderDocGrid();
+}
+function renderDocGrid(){
+  const q = (document.getElementById('docSearch')?.value || '').toLowerCase();
+  const rows = state.docs.filter(d=>d.name.toLowerCase().includes(q));
+  const grid = document.getElementById('docGrid');
+  if(!grid) return;
+  if(rows.length===0){ grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">${state.docs.length===0 ? 'Ainda sem documentos. Carrega o primeiro ficheiro.' : 'Nenhum documento encontrado.'}</div>`; return; }
+  grid.innerHTML = rows.map(d=>`<div class="doc-card" onclick="openDoc('${d.id}')" style="cursor:pointer;">${d.thumb?`<img src="${d.thumb}" style="width:100%;height:52px;object-fit:cover;border-radius:8px;margin-bottom:8px;">`:ICONS.doc}<div class="doc-name">${d.name}</div><div class="doc-meta">${d.tag} · ${d.type}${d.size?' · '+d.size:''}</div></div>`).join('');
+}
+function openDoc(id){
+  const d = state.docs.find(x=>x.id===id);
+  if(!d) return;
+  if(d.data){
+    const w = window.open();
+    if(w){
+      w.document.write(`<title>${d.name}</title>`);
+      if(d.data.startsWith('data:image')){ w.document.write(`<body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;height:100vh;"><img src="${d.data}" style="max-width:100%;max-height:100%;"></body>`); }
+      else if(d.data.startsWith('data:application/pdf')){ w.document.write(`<body style="margin:0;"><embed src="${d.data}" type="application/pdf" width="100%" height="100%" style="position:fixed;inset:0;"></body>`); }
+      else { w.location.href = d.data; }
+    }
+  } else {
+    toast('Este documento não tem um ficheiro associado (protótipo).');
+  }
+}
+
+/* ---------------- ANÁLISE DA EMPRESA ---------------- */
+function computeMonthlySeries(n){
+  const now = new Date();
+  const arr = [];
+  for(let i=n-1;i>=0;i--){
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    const y=d.getFullYear(), m=d.getMonth();
+    const receita = state.movements.filter(mv=>{const dd=new Date(mv.date+'T00:00:00');return dd.getFullYear()===y&&dd.getMonth()===m&&mv.type==='receita';}).reduce((s,mv)=>s+mv.value,0);
+    let despesa = state.movements.filter(mv=>{const dd=new Date(mv.date+'T00:00:00');return dd.getFullYear()===y&&dd.getMonth()===m&&mv.type==='despesa';}).reduce((s,mv)=>s+mv.value,0);
+    const isCurrent = y===now.getFullYear() && m===now.getMonth();
+    if(isCurrent) despesa += fixedCostsMonthlyTotal();
+    arr.push({label:MONTHS[m].slice(0,3), y, m, receita, despesa, lucro:receita-despesa});
+  }
+  return arr;
+}
+function generateSuggestions(m){
+  const tips = [];
+  const push = (level, title, text) => tips.push({level, title, text});
+
+  if(state.movements.length===0){
+    push('info','Regista os teus primeiros movimentos','Ainda não há receitas nem despesas registadas. Assim que começares a registar, esta secção passa a dar-te sugestões baseadas nos teus números reais.');
+  }
+
+  if(m.cur.lucro < 0 && state.movements.length>0){
+    push('danger','Este mês está no vermelho','As despesas (incluindo custos fixos) ultrapassam a receita. Vale a pena rever se há despesas a cortar ou faturas por cobrar em atraso.');
+  }
+
+  if(m.pctChange <= -15 && m.prev.receita>0){
+    push('warn','Receita a cair vs mês anterior','A receita caiu '+Math.abs(m.pctChange)+'% face ao mês passado. Convém perceber se foi sazonal, se algum cliente reduziu o serviço, ou se há faturas por emitir.');
+  } else if(m.pctChange >= 20 && m.prev.receita>0){
+    push('ok','Crescimento saudável','A receita cresceu '+m.pctChange+'% vs o mês anterior. Boa altura para rever se a capacidade da equipa acompanha este crescimento.');
+  }
+
+  if(m.concentracao > 50 && m.topClientEntry){
+    push('warn','Elevada dependência de um único cliente','"'+m.topClientEntry[0]+'" representa '+m.concentracao+'% da tua receita. Se este cliente saísse, o impacto seria grande — vale a pena diversificar a carteira de clientes.');
+  }
+
+  if(m.overhead > 30){
+    push('warn','Custos fixos pesam bastante na receita','Os custos fixos representam '+m.overhead+'% da receita deste mês. Revê se todas as subscrições e custos recorrentes ainda fazem sentido.');
+  }
+
+  if(pendingMovements() > 0){
+    push('warn','Tens '+pendingMovements()+' movimento(s) por regularizar','Há receitas ou despesas ainda marcadas como "Pendente" em Financeiro. Marca-as como pagas assim que estiverem regularizadas, para os números refletirem a realidade.');
+  }
+
+  if(state.fixedCosts.length===0 && state.movements.filter(x=>x.type==='despesa').length>2){
+    push('info','Regista os teus custos recorrentes como custos fixos','Já tens despesas registadas mas nenhum custo fixo definido. Marcar rendas, subscrições e seguros como custo fixo dá-te alertas automáticos e uma previsão mensal mais fiável.');
+  }
+
+  if(m.catRanked.length>0){
+    const [topCat, topVal] = m.catRanked[0];
+    const totalDespesa = m.catRanked.reduce((s,[,v])=>s+v,0);
+    const share = totalDespesa>0 ? Math.round((topVal/totalDespesa)*100) : 0;
+    if(share > 40){
+      push('info','Uma categoria domina as despesas','"'+topCat+'" representa '+share+'% do total de despesas. Vale a pena confirmar se este valor é o esperado ou se há espaço para negociar/otimizar.');
+    }
+  }
+
+  if(m.taskRate < 40 && state.tasks.length >= 4){
+    push('warn','Taxa de conclusão de tarefas baixa','Só '+m.taskRate+'% das tarefas registadas estão concluídas. Se o volume de trabalho estiver a acumular-se, pode valer a pena rever prioridades ou capacidade.');
+  }
+
+  if(state.clients.length>0 && state.clients.length<3){
+    push('info','Base de clientes ainda pequena','Tens '+state.clients.length+' cliente(s) ativo(s). Continuar a prospecção é importante para reduzir o risco de dependência e estabilizar a receita.');
+  }
+
+  if(tips.length===0){
+    push('ok','Sem alertas relevantes por agora','Os números estão equilibrados com base no que está registado. Continua a manter os registos atualizados para sugestões cada vez mais precisas.');
+  }
+
+  const order = {danger:0, warn:1, info:2, ok:3};
+  return tips.sort((a,b)=>order[a.level]-order[b.level]).slice(0,6);
+}
+
+function renderAnalise(){
+  const series = computeMonthlySeries(6);
+  const maxAbs = Math.max(...series.map(s=>Math.abs(s.lucro)),1);
+
+  const catTotals = {};
+  state.movements.filter(m=>m.type==='despesa').forEach(m=>{ catTotals[m.cat]=(catTotals[m.cat]||0)+m.value; });
+  state.fixedCosts.filter(c=>c.active).forEach(c=>{ catTotals[c.category]=(catTotals[c.category]||0)+c.value; });
+  const catRanked = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
+  const catMax = Math.max(...catRanked.map(([,v])=>v),1);
+
+  const cur = series[series.length-1];
+  const prev = series[series.length-2] || {receita:0,despesa:0,lucro:0};
+  const pctChange = prev.receita>0 ? Math.round(((cur.receita-prev.receita)/prev.receita)*100) : (cur.receita>0?100:0);
+
+  const clientTotals = {};
+  state.movements.filter(m=>m.type==='receita').forEach(m=>{ clientTotals[m.client]=(clientTotals[m.client]||0)+m.value; });
+  const totalReceita = Object.values(clientTotals).reduce((s,v)=>s+v,0);
+  const topClientEntry = Object.entries(clientTotals).sort((a,b)=>b[1]-a[1])[0];
+  const concentracao = topClientEntry && totalReceita>0 ? Math.round((topClientEntry[1]/totalReceita)*100) : 0;
+
+  const totalTasks = state.tasks.length;
+  const doneTasks = state.tasks.filter(t=>t.status==='done').length;
+  const taskRate = totalTasks>0 ? Math.round((doneTasks/totalTasks)*100) : 0;
+
+  const overhead = cur.receita>0 ? Math.round((fixedCostsMonthlyTotal()/cur.receita)*100) : (fixedCostsMonthlyTotal()>0?100:0);
+
+  const suggestions = generateSuggestions({cur, prev, pctChange, concentracao, topClientEntry, overhead, catRanked, taskRate});
+  const LEVEL_STYLE = {
+    danger:{color:'var(--danger)', bg:'rgba(226,104,95,.10)'},
+    warn:{color:'var(--warn)', bg:'rgba(240,168,96,.10)'},
+    info:{color:'var(--accent)', bg:'rgba(63,217,199,.08)'},
+    ok:{color:'var(--ok)', bg:'rgba(111,207,124,.08)'}
+  };
+
+  document.getElementById('view-analise').innerHTML = `
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-head"><div class="card-title">💡 Sugestões para melhorar as contas</div></div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        ${suggestions.map(s=>`
+          <div style="background:${LEVEL_STYLE[s.level].bg};border:1px solid ${LEVEL_STYLE[s.level].color};border-radius:10px;padding:12px 14px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+              <span class="tag-dot" style="background:${LEVEL_STYLE[s.level].color};"></span>
+              <strong style="font-size:12.5px;">${s.title}</strong>
+            </div>
+            <div style="font-size:11.5px;color:var(--muted);line-height:1.5;">${s.text}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-label">Lucro este mês</div><div class="kpi-value ${cur.lucro>=0?'pos':'warn'}">${cur.lucro.toLocaleString('pt-PT')}€</div><div class="kpi-delta">Receita − despesas (incl. custos fixos)</div></div>
+      <div class="kpi"><div class="kpi-label">Variação vs mês anterior</div><div class="kpi-value ${pctChange>=0?'pos':'warn'}">${pctChange>=0?'+':''}${pctChange}%</div><div class="kpi-delta">Receita deste mês vs anterior</div></div>
+      <div class="kpi"><div class="kpi-label">Concentração de clientes</div><div class="kpi-value ${concentracao>50?'warn':''}">${concentracao}%</div><div class="kpi-delta">${topClientEntry?topClientEntry[0]:'Sem dados'} da receita total</div></div>
+      <div class="kpi"><div class="kpi-label">Peso dos custos fixos</div><div class="kpi-value ${overhead>30?'warn':''}">${overhead}%</div><div class="kpi-delta">Custos fixos / receita do mês</div></div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head"><div class="card-title">Lucro mensal — últimos 6 meses</div></div>
+        ${state.movements.length===0 ? `<div class="empty-state">Sem dados suficientes ainda.</div>` : `
+        <div class="chart">
+          ${series.map(s=>`<div class="bar-col"><div class="bar" style="height:${Math.max(4,(Math.abs(s.lucro)/maxAbs)*100)}%;background:${s.lucro<0?'rgba(226,104,95,.45)':'var(--accent-dim)'};"></div><div class="bar-label">${s.label}</div></div>`).join('')}
+        </div>`}
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-title">Despesas por categoria</div></div>
+        ${catRanked.length ? catRanked.map(([cat,val])=>`<div class="deadline-row"><span class="deadline-name">${cat}</span><span class="progress-bar"><span class="progress-fill" style="width:${(val/catMax)*100}%;"></span></span><span class="deadline-date mono">${val}€</span></div>`).join('') : '<div class="empty-state">Sem despesas registadas ainda.</div>'}
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head"><div class="card-title">Receita vs despesa, mês a mês</div></div>
+        ${state.movements.length===0 ? `<div class="empty-state">Sem dados suficientes ainda.</div>` : series.map(s=>`
+          <div class="deadline-row">
+            <span class="deadline-name">${s.label}</span>
+            <span class="mono" style="color:var(--ok);font-size:11px;width:60px;text-align:right;">+${s.receita}€</span>
+            <span class="mono" style="color:var(--danger);font-size:11px;width:60px;text-align:right;">-${s.despesa}€</span>
+            <span class="deadline-date mono" style="color:${s.lucro>=0?'var(--ok)':'var(--danger)'};width:60px;">${s.lucro>=0?'+':''}${s.lucro}€</span>
+          </div>`).join('')}
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-title">Produtividade da equipa</div></div>
+        <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">${doneTasks} de ${totalTasks} tarefa(s) concluída(s)</div>
+        <div class="progress-bar" style="width:100%;height:8px;"><span class="progress-fill" style="width:${taskRate}%;"></span></div>
+        <div style="margin-top:8px;font-family:var(--mono);font-size:20px;font-weight:600;">${taskRate}%</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px;">Taxa de conclusão de tarefas registadas</div>
+      </div>
+    </div>`;
+}
+
+/* ---------------- DEFINIÇÕES ---------------- */
+function renderDefinicoes(){
+  const s = state.settings;
+  const c = s.company || {};
+  const notifPermState = (typeof Notification!=='undefined') ? Notification.permission : 'unsupported';
+  const notifStatusText = notifPermState==='granted' ? 'Permitidas neste dispositivo'
+    : notifPermState==='denied' ? 'Bloqueadas — ativa nas definições do telemóvel/navegador'
+    : notifPermState==='unsupported' ? 'Não suportado neste navegador'
+    : 'Ainda não pedimos permissão';
+  document.getElementById('view-definicoes').innerHTML = `
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head"><div class="card-title">Empresa</div><button class="card-link" onclick="openModal('empresa')">Editar</button></div>
+        <div class="setting-row">
+          <div><div class="setting-label">Logótipo</div><div class="setting-desc">${c.logo?'Carregado':'Nenhum carregado'}</div></div>
+          ${c.logo ? `<img src="${c.logo}" alt="Logótipo" style="width:40px;height:40px;border-radius:9px;object-fit:cover;">` : ''}
+        </div>
+        <div class="setting-row"><div><div class="setting-label">Nome</div><div class="setting-desc">${c.name||'A preencher'}</div></div></div>
+        <div class="setting-row"><div><div class="setting-label">NIF</div><div class="setting-desc mono">${c.nif||'A preencher'}</div></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-title">Preferências</div></div>
+        <div class="setting-row"><div><div class="setting-label">Tema escuro</div><div class="setting-desc">Usado em toda a aplicação</div></div><div class="toggle ${s.dark?'on':''}" onclick="toggleSetting('dark')"></div></div>
+        <div class="setting-row"><div><div class="setting-label">Notificações de prazos</div><div class="setting-desc">Alertas de pagamentos e entregas</div></div><div class="toggle ${s.notifDeadlines?'on':''}" onclick="toggleSetting('notifDeadlines')"></div></div>
+        <div class="setting-row"><div><div class="setting-label">Backup automático</div><div class="setting-desc">Diário, às 23:00</div></div><div class="toggle ${s.autoBackup?'on':''}" onclick="toggleSetting('autoBackup')"></div></div>
+        <div class="setting-row"><div><div class="setting-label">PIN / biometria</div><div class="setting-desc">Bloqueio da aplicação</div></div><div class="toggle ${s.pin?'on':''}" onclick="toggleSetting('pin')"></div></div>
+        <div class="setting-row">
+          <div><div class="setting-label">Notificações do telemóvel</div><div class="setting-desc">${notifStatusText}</div></div>
+          <div class="toggle ${s.systemNotif?'on':''}" onclick="toggleSystemNotif()"></div>
+        </div>
+        <div style="font-size:10.5px;color:var(--muted);line-height:1.5;margin-top:2px;">Enquanto a app estiver aberta (ou em segundo plano no telemóvel), os alertas aparecem como notificações reais do sistema, não apenas dentro do painel.</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px;border-color:var(--danger);">
+      <div class="card-head"><div class="card-title" style="color:var(--danger);">Zona de risco</div></div>
+      <div class="setting-row">
+        <div><div class="setting-label">Repor todos os dados</div><div class="setting-desc">Apaga clientes, movimentos, tarefas, documentos e eventos. Não pode ser desfeito.</div></div>
+        <button class="btn-ghost" style="border-color:var(--danger);color:var(--danger);" onclick="resetAppData()">Repor</button>
+      </div>
+    </div>`;
+}
+function toggleSetting(key){
+  state.settings[key] = !state.settings[key];
+  saveState();
+  toast(state.settings[key] ? 'Ativado' : 'Desativado');
+  renderDefinicoes();
+}
+function toggleSystemNotif(){
+  if(typeof Notification==='undefined'){
+    toast('Este navegador não suporta notificações do sistema');
+    return;
+  }
+  if(state.settings.systemNotif){
+    state.settings.systemNotif = false;
+    saveState();
+    toast('Notificações do telemóvel desativadas');
+    renderDefinicoes();
+    return;
+  }
+  Notification.requestPermission().then(perm=>{
+    if(perm==='granted'){
+      state.settings.systemNotif = true;
+      saveState();
+      new Notification('Lente Viva', {body:'As notificações do sistema estão ativas.'});
+      toast('Notificações do telemóvel ativadas');
+    } else {
+      state.settings.systemNotif = false;
+      saveState();
+      toast('Permissão de notificações não concedida');
+    }
+    renderDefinicoes();
+  });
+}
+function fireSystemNotification(n){
+  if(!state.settings.systemNotif) return;
+  if(typeof Notification==='undefined' || Notification.permission!=='granted') return;
+  try{ new Notification(n.title, {body:n.body}); }catch(e){}
+}
+function resetAppData(){
+  if(!confirm('Tens a certeza? Isto apaga todos os clientes, movimentos, tarefas, documentos e eventos guardados neste dispositivo.')) return;
+  try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+  state = structuredClone(DEFAULT_STATE);
+  saveState();
+  goToView('dashboard');
+  toast('Dados repostos a zero');
+}
+
+/* ---------------- MODALS ---------------- */
+const CLIENT_NAMES = ()=> state.clients.map(c=>c.name);
+function openModal(type, clientId){
+  const overlay = document.getElementById('modalOverlay');
+  const title = document.getElementById('modalTitle');
+  const body = document.getElementById('modalBody');
+  const submit = document.getElementById('modalSubmit');
+  overlay.classList.add('open');
+
+  if(type==='receita' || type==='despesa' || type==='deposito' || type==='movimento'){
+    title.textContent = type==='despesa' ? 'Nova despesa' : type==='deposito' ? 'Novo depósito' : 'Novo movimento';
+    body.innerHTML = `
+      <div class="field"><label>Descrição</label><input id="f-desc" placeholder="${type==='deposito' ? 'Ex: Entrada de capital, transferência pessoal...' : 'Ex: Gestão de redes sociais'}"></div>
+      <div class="field"><label>Cliente</label><select id="f-client"><option>—</option>${CLIENT_NAMES().map(n=>`<option>${n}</option>`).join('')}</select></div>
+      <div class="field"><label>Categoria</label><input id="f-cat" placeholder="Ex: Serviço, Ferramentas..."></div>
+      <div class="field" id="f-date-wrap"><label>Data</label><input id="f-date" type="date" value="${todayIso()}"></div>
+      <div class="field"><label>Tipo</label><select id="f-type">
+        <option value="receita" ${type==='receita'||type==='movimento'?'selected':''}>Receita (conta como faturação)</option>
+        <option value="despesa" ${type==='despesa'?'selected':''}>Despesa</option>
+        <option value="deposito" ${type==='deposito'?'selected':''}>Depósito (não conta como faturação)</option>
+      </select></div>
+      <div class="field"><label>Valor (€)</label><input id="f-value" type="number" placeholder="0"></div>
+      <div class="field" id="f-deposito-note" style="display:none;background:rgba(63,217,199,.08);border:1px solid var(--accent-dim);border-radius:9px;padding:10px 12px;">
+        <div style="font-size:11.5px;color:var(--muted);line-height:1.5;">Este valor aumenta o saldo da conta, mas <strong style="color:var(--text);">não conta como faturação</strong> — não entra no cálculo de receitas nem de IVA. Útil para entradas de capital, reembolsos ou transferências que não são serviços prestados.</div>
+      </div>
+      <div class="field" id="f-recurring-wrap" style="display:none;">
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:12.5px;color:var(--text);">
+          <input type="checkbox" id="f-recurring" style="width:auto;">
+          É um custo fixo mensal (repete todos os meses, com alerta 3 dias antes)
+        </label>
+      </div>
+      <div class="field" id="f-recurday-wrap" style="display:none;">
+        <label>Dia de pagamento (1–31)</label><input id="f-recurday" type="number" min="1" max="31" placeholder="Ex: 8">
+      </div>`;
+    const typeSelect = ()=>document.getElementById('f-type');
+    const recurWrap = ()=>document.getElementById('f-recurring-wrap');
+    const recurCheck = ()=>document.getElementById('f-recurring');
+    const recurDayWrap = ()=>document.getElementById('f-recurday-wrap');
+    const dateWrap = ()=>document.getElementById('f-date-wrap');
+    const depositoNote = ()=>document.getElementById('f-deposito-note');
+    function syncRecurringUI(){
+      const tS=typeSelect(), rW=recurWrap(), rC=recurCheck(), rdW=recurDayWrap(), dW=dateWrap(), dN=depositoNote();
+      if(!tS||!rW||!rC||!rdW||!dW||!dN) return;
+      rW.style.display = tS.value==='despesa' ? 'block' : 'none';
+      dN.style.display = tS.value==='deposito' ? 'block' : 'none';
+      const isRecurring = tS.value==='despesa' && rC.checked;
+      rdW.style.display = isRecurring ? 'block' : 'none';
+      dW.style.display = isRecurring ? 'none' : 'block';
+    }
+    syncRecurringUI();
+    typeSelect().addEventListener('change', syncRecurringUI);
+    recurCheck().addEventListener('change', syncRecurringUI);
+    submit.onclick = ()=>{
+      const desc=document.getElementById('f-desc').value.trim();
+      const value=parseFloat(document.getElementById('f-value').value);
+      const isRecurring = typeSelect().value==='despesa' && recurCheck().checked;
+      if(!desc || !value){ toast('Preenche a descrição e o valor'); return; }
+      if(isRecurring){
+        const day=parseInt(document.getElementById('f-recurday').value,10);
+        if(!day||day<1||day>31){ toast('Indica um dia de pagamento válido (1–31)'); return; }
+        state.fixedCosts.unshift({id:uid('fc'),name:desc,category:document.getElementById('f-cat').value||'Geral',value,dueDay:day,active:true});
+        logActivity('Novo custo fixo: '+desc+' ('+value+'€/mês, dia '+day+')');
+        saveState();
+        checkFixedCostAlerts();
+        closeModal(); goToView('financeiro'); setFinTab('custos'); toast('Custo fixo adicionado');
+        return;
+      }
+      state.movements.unshift({id:uid('m'),date:document.getElementById('f-date').value||todayIso(),desc,cat:document.getElementById('f-cat').value||'Geral',client:document.getElementById('f-client').value,type:typeSelect().value,value,status:'Pendente'});
+      logActivity((typeSelect().value==='deposito'?'Novo depósito: ':'Novo movimento: ')+desc);
+      saveState(); closeModal(); goToView('financeiro'); toast('Movimento adicionado');
+    };
+  }
+
+  if(type==='tarefa'){
+    title.textContent = 'Nova tarefa';
+    body.innerHTML = `
+      <div class="field"><label>Título</label><input id="f-title" placeholder="Ex: Enviar proposta"></div>
+      <div class="field"><label>Cliente</label><select id="f-client">${CLIENT_NAMES().length ? CLIENT_NAMES().map(n=>`<option>${n}</option>`).join('') : '<option>—</option>'}<option>Prospecção</option></select></div>
+      <div class="field"><label>Prioridade</label><select id="f-prio"><option>Alta</option><option selected>Média</option><option>Baixa</option></select></div>
+      <div class="field"><label>Prazo</label><input id="f-due" type="date" value="${todayIso()}"></div>`;
+    submit.onclick = ()=>{
+      const t=document.getElementById('f-title').value.trim();
+      if(!t){ toast('Preenche o título da tarefa'); return; }
+      state.tasks.unshift({id:uid('t'),title:t,client:document.getElementById('f-client').value,priority:document.getElementById('f-prio').value,due:document.getElementById('f-due').value,status:'todo'});
+      logActivity('Nova tarefa: '+t);
+      saveState(); closeModal(); goToView('trabalho'); toast('Tarefa criada');
+    };
+  }
+
+  if(type==='cliente'){
+    title.textContent = 'Novo cliente';
+    body.innerHTML = `
+      <div class="field"><label>Nome</label><input id="f-name" placeholder="Ex: Padaria Central"></div>
+      <div class="field"><label>Segmento / localização</label><input id="f-seg" placeholder="Ex: Restauração · Faro"></div>
+      <div class="field"><label>Responsável</label><input id="f-resp" placeholder="Ex: Tomás"></div>
+      <div class="field"><label>NIF</label><input id="f-nif" placeholder="5xx xxx xxx"></div>
+      <div class="field"><label>Email</label><input id="f-email" placeholder="geral@empresa.pt"></div>
+      <div class="field"><label>Telefone</label><input id="f-phone" placeholder="+351 9xx xxx xxx"></div>
+      <div class="field"><label>Morada</label><input id="f-address" placeholder="Ex: Rua Exemplo, 123, Faro"></div>`;
+    submit.onclick = ()=>{
+      const name=document.getElementById('f-name').value.trim();
+      if(!name){ toast('Preenche o nome do cliente'); return; }
+      const id=uid('c');
+      state.clients.unshift({id,name,segment:document.getElementById('f-seg').value||'',project:'',responsible:document.getElementById('f-resp').value||'',nif:document.getElementById('f-nif').value||'',email:document.getElementById('f-email').value||'',phone:document.getElementById('f-phone').value||'',address:document.getElementById('f-address').value||'',status:'Ativo',projects:[]});
+      logActivity('Novo cliente: '+name);
+      saveState(); closeModal(); goToView('clientes'); openClient(id); toast('Cliente adicionado');
+    };
+  }
+
+  if(type==='editar-cliente'){
+    const c = state.clients.find(x=>x.id===clientId);
+    if(!c){ closeModal(); return; }
+    title.textContent = 'Editar '+c.name;
+    body.innerHTML = `
+      <div class="field"><label>Nome</label><input id="f-ename" value="${c.name||''}"></div>
+      <div class="field"><label>Segmento / localização</label><input id="f-eseg" value="${c.segment||''}"></div>
+      <div class="field"><label>Responsável</label><input id="f-eresp" placeholder="Ex: Tomás" value="${c.responsible||''}"></div>
+      <div class="field"><label>NIF</label><input id="f-enif" value="${c.nif||''}"></div>
+      <div class="field"><label>Email</label><input id="f-eemail" value="${c.email||''}"></div>
+      <div class="field"><label>Telefone</label><input id="f-ephone" value="${c.phone||''}"></div>
+      <div class="field"><label>Morada</label><input id="f-eaddress" value="${c.address||''}"></div>
+      <div class="field"><label>Estado</label><select id="f-estatus">
+        <option ${c.status==='Ativo'?'selected':''}>Ativo</option>
+        <option ${c.status==='Pendente'?'selected':''}>Pendente</option>
+        <option ${c.status==='Inativo'?'selected':''}>Inativo</option>
+      </select></div>`;
+    submit.onclick = ()=>{
+      const name = document.getElementById('f-ename').value.trim();
+      if(!name){ toast('Preenche o nome do cliente'); return; }
+      c.name = name;
+      c.segment = document.getElementById('f-eseg').value||'';
+      c.responsible = document.getElementById('f-eresp').value||'';
+      c.nif = document.getElementById('f-enif').value||'';
+      c.email = document.getElementById('f-eemail').value||'';
+      c.phone = document.getElementById('f-ephone').value||'';
+      c.address = document.getElementById('f-eaddress').value||'';
+      c.status = document.getElementById('f-estatus').value;
+      logActivity('Ficha de '+name+' atualizada');
+      saveState(); closeModal(); openClient(c.id); toast('Informações do cliente guardadas');
+    };
+  }
+
+  if(type==='projeto'){
+    title.textContent = 'Novo projeto';
+    if(CLIENT_NAMES().length===0){
+      body.innerHTML = `<div class="empty-state">Cria primeiro um cliente para lhe associar um projeto.</div>`;
+      submit.onclick = ()=>{ closeModal(); openModal('cliente'); };
+    } else {
+      body.innerHTML = `
+        <div class="field"><label>Nome do projeto</label><input id="f-pname" placeholder="Ex: Campanha de lançamento"></div>
+        <div class="field"><label>Cliente</label><select id="f-pclient">${CLIENT_NAMES().map(n=>`<option>${n}</option>`).join('')}</select></div>`;
+      submit.onclick = ()=>{
+        const pname=document.getElementById('f-pname').value.trim();
+        const clientName=document.getElementById('f-pclient').value;
+        if(!pname){ toast('Preenche o nome do projeto'); return; }
+        const c = state.clients.find(x=>x.name===clientName);
+        if(c){ c.projects.push({name:pname,pct:0}); c.project=pname; }
+        logActivity('Novo projeto "'+pname+'" para '+clientName);
+        saveState(); closeModal(); goToView('clientes'); if(c) openClient(c.id); toast('Projeto adicionado a '+clientName);
+      };
+    }
+  }
+
+  if(type==='documento'){
+    title.textContent = 'Carregar ficheiro';
+    body.innerHTML = `
+      <div class="field"><label>Ficheiro</label><input id="f-docfile" type="file"></div>
+      <div class="field"><label>Nome do documento</label><input id="f-docname" placeholder="Ex: Contrato Cliente X"></div>
+      <div class="field"><label>Associar a</label><select id="f-doctag"><option ${clientId?'selected':''} value="Cliente">Cliente</option><option value="Projeto">Projeto</option><option value="Financeiro">Financeiro</option></select></div>
+      <div id="f-docprogress" style="font-size:11px;color:var(--muted);"></div>`;
+    const fileInput = ()=>document.getElementById('f-docfile');
+    const fi = fileInput();
+    if(fi){
+      fi.addEventListener('change', ()=>{
+        const f = fileInput().files[0];
+        const nameField = document.getElementById('f-docname');
+        if(f && nameField && !nameField.value){
+          nameField.value = f.name.replace(/\.[^.]+$/,'');
+        }
+      });
+    }
+    submit.onclick = async ()=>{
+      const n=document.getElementById('f-docname').value.trim();
+      const f = fileInput().files[0];
+      if(!n){ toast('Preenche o nome do documento'); return; }
+      if(!f){ toast('Escolhe um ficheiro para carregar'); return; }
+      if(f.size > 4*1024*1024){ toast('Ficheiro demasiado grande (máx. ~4MB neste protótipo)'); return; }
+      document.getElementById('f-docprogress').textContent = 'A carregar...';
+      try{
+        const dataUrl = await fileToDataUrl(f);
+        const ext = (f.name.split('.').pop()||'').toUpperCase();
+        state.docs.unshift({id:uid('d'),name:n,tag:document.getElementById('f-doctag').value,type:ext||'FICHEIRO',size:formatBytes(f.size),data:dataUrl,thumb:dataUrl.startsWith('data:image')?dataUrl:null,clientId:clientId||null});
+        logActivity('Documento carregado: '+n);
+        saveState();
+        closeModal();
+        if(clientId){ openClient(clientId); } else { goToView('documentos'); }
+        toast('Documento carregado');
+      }catch(e){
+        toast('Erro ao carregar o ficheiro');
+      }
+    };
+  }
+
+  if(type==='evento'){
+    title.textContent = 'Novo evento no calendário';
+    body.innerHTML = `
+      <div class="field"><label>Título</label><input id="f-etitle" placeholder="Ex: Reunião com cliente"></div>
+      <div class="field"><label>Data</label><input id="f-edate" type="date" value="${state.calSelectedDate||todayIso()}"></div>
+      <div class="field"><label>Tipo</label><select id="f-etype">${Object.entries(EVENT_TYPES).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}</select></div>`;
+    submit.onclick = ()=>{
+      const t=document.getElementById('f-etitle').value.trim();
+      const d=document.getElementById('f-edate').value;
+      if(!t||!d){ toast('Preenche o título e a data'); return; }
+      state.events.push({id:uid('e'),title:t,date:d,type:document.getElementById('f-etype').value});
+      logActivity('Novo evento: '+t);
+      state.calSelectedDate = d;
+      const dd = new Date(d+'T00:00:00');
+      state.calMonth = dd.getMonth(); state.calYear = dd.getFullYear();
+      saveState(); closeModal(); goToView('trabalho'); setTrabTab('calendario'); toast('Evento adicionado ao calendário');
+    };
+  }
+
+  if(type==='empresa'){
+    const c = state.settings.company || {};
+    title.textContent = 'Editar informações da empresa';
+    body.innerHTML = `
+      <div class="field"><label>Logótipo</label><input id="f-clogo" type="file" accept="image/*"></div>
+      <div id="f-clogo-preview" style="${c.logo?'':'display:none'}"><img src="${c.logo||''}" style="width:56px;height:56px;border-radius:12px;object-fit:cover;"></div>
+      <div class="field"><label>Nome da empresa</label><input id="f-cname" placeholder="Ex: Lente Viva" value="${c.name||''}"></div>
+      <div class="field"><label>NIF</label><input id="f-cnif" placeholder="5xx xxx xxx" value="${c.nif||''}"></div>`;
+    let pendingLogo = c.logo || null;
+    const logoInput = document.getElementById('f-clogo');
+    logoInput.addEventListener('change', async ()=>{
+      const f = logoInput.files[0];
+      if(!f) return;
+      if(f.size > 2*1024*1024){ toast('Imagem demasiado grande (máx. ~2MB)'); return; }
+      try{
+        pendingLogo = await fileToDataUrl(f);
+        const prev = document.getElementById('f-clogo-preview');
+        prev.style.display = 'block';
+        prev.innerHTML = `<img src="${pendingLogo}" style="width:56px;height:56px;border-radius:12px;object-fit:cover;">`;
+      }catch(e){ toast('Erro ao carregar a imagem'); }
+    });
+    submit.onclick = ()=>{
+      const name = document.getElementById('f-cname').value.trim();
+      if(!name){ toast('Preenche o nome da empresa'); return; }
+      state.settings.company = {name, nif:document.getElementById('f-cnif').value.trim(), logo:pendingLogo};
+      logActivity('Informações da empresa atualizadas');
+      saveState(); closeModal(); renderAll(); toast('Informações da empresa guardadas');
+    };
+  }
+
+  if(type==='custofixo'){
+    title.textContent = 'Novo custo fixo mensal';
+    body.innerHTML = `
+      <div class="field"><label>Nome</label><input id="f-cfname" placeholder="Ex: Renda do escritório, Software, Seguro..."></div>
+      <div class="field"><label>Categoria</label><input id="f-cfcat" placeholder="Ex: Ferramentas, Instalações..."></div>
+      <div class="field"><label>Valor mensal (€)</label><input id="f-cfvalue" type="number" placeholder="0"></div>
+      <div class="field"><label>Dia de pagamento (1–31)</label><input id="f-cfday" type="number" min="1" max="31" placeholder="Ex: 8"></div>
+      <div style="font-size:11px;color:var(--muted);">Vais receber um alerta 3 dias antes da data de pagamento, todos os meses.</div>`;
+    submit.onclick = ()=>{
+      const name=document.getElementById('f-cfname').value.trim();
+      const value=parseFloat(document.getElementById('f-cfvalue').value);
+      const day=parseInt(document.getElementById('f-cfday').value,10);
+      if(!name||!value){ toast('Preenche o nome e o valor'); return; }
+      if(!day||day<1||day>31){ toast('Indica um dia de pagamento válido (1–31)'); return; }
+      state.fixedCosts.unshift({id:uid('fc'),name,category:document.getElementById('f-cfcat').value||'Geral',value,dueDay:day,active:true});
+      logActivity('Novo custo fixo: '+name+' ('+value+'€/mês, dia '+day+')');
+      saveState();
+      checkFixedCostAlerts();
+      closeModal(); goToView('financeiro'); setFinTab('custos'); toast('Custo fixo adicionado');
+    };
+  }
+}
+function closeModal(){ document.getElementById('modalOverlay').classList.remove('open'); }
+document.getElementById('modalOverlay').addEventListener('click',(e)=>{ if(e.target.id==='modalOverlay') closeModal(); });
+document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeModal(); });
+
+/* ---------------- RENDER ALL ---------------- */
+function renderAll(){
+  renderBrand();
+  renderNav();
+  renderNotif();
+  renderDashboard();
+  renderFinanceiro();
+  renderClientes();
+  renderTrabalho();
+  renderDocumentos();
+  renderAnalise();
+  renderDefinicoes();
+}
+checkFixedCostAlerts();
+goToView(state.currentView);
+</script>
+</body>
+</html>
