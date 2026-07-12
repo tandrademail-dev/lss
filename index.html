@@ -567,8 +567,14 @@ function checkFixedCostAlerts(){
   });
   if(changed) saveState();
 }
-function fixedCostsMonthlyTotal(){
+function isFixedCostConfirmed(c){
+  return !!(c.paidMonths && c.paidMonths[monthKey()]);
+}
+function fixedCostsCommittedTotal(){
   return state.fixedCosts.filter(c=>c.active).reduce((s,c)=>s+c.value,0);
+}
+function fixedCostsMonthlyTotal(){
+  return state.fixedCosts.filter(c=>c.active && isFixedCostConfirmed(c)).reduce((s,c)=>s+c.value,0);
 }
 
 /* ---------------- shared: upcoming items (tasks + events + custos fixos) ---------------- */
@@ -698,10 +704,11 @@ function renderFinanceiro(){
     </div>
     <div id="fin-custos" style="${tab==='custos'?'':'display:none'}">
       <div class="card" style="margin-bottom:16px;">
-        <div class="card-head"><div class="card-title">Total mensal comprometido</div></div>
-        <div class="kpi-value warn">${fixedCostsMonthlyTotal().toLocaleString('pt-PT')}€ <span style="font-size:11px;color:var(--muted);font-weight:400;">/ mês, em custos ativos</span></div>
+        <div class="card-head"><div class="card-title">Custos fixos deste mês</div></div>
+        <div class="kpi-value warn">${fixedCostsMonthlyTotal().toLocaleString('pt-PT')}€ <span style="font-size:11px;color:var(--muted);font-weight:400;">confirmado(s) como já saído da conta</span></div>
+        <div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5;">Total comprometido (todos os custos ativos): ${fixedCostsCommittedTotal().toLocaleString('pt-PT')}€/mês. Só o valor confirmado como "já saiu da conta" entra no saldo, nas despesas e na faturação.</div>
       </div>
-      <div class="row-card"><table><thead><tr><th>Nome</th><th>Categoria</th><th>Valor</th><th>Dia de pagamento</th><th>Próximo pagamento</th><th>Estado</th><th></th></tr></thead><tbody id="custosTbody"></tbody></table></div>
+      <div class="row-card"><table><thead><tr><th>Nome</th><th>Categoria</th><th>Valor</th><th>Dia de pagamento</th><th>Próximo pagamento</th><th>Saiu da conta (mês atual)</th><th>Estado</th><th>Ações</th></tr></thead><tbody id="custosTbody"></tbody></table></div>
     </div>
     <div id="fin-relatorios" style="${tab==='relatorios'?'':'display:none'}">
       <div class="grid-2">
@@ -721,16 +728,18 @@ function renderFinanceiro(){
 function renderCustosTable(){
   const tbody = document.getElementById('custosTbody');
   if(!tbody) return;
-  if(state.fixedCosts.length===0){ tbody.innerHTML = `<tr class="empty-row"><td colspan="7">Ainda sem custos fixos. Cria o primeiro com "+ Novo custo fixo".</td></tr>`; return; }
+  if(state.fixedCosts.length===0){ tbody.innerHTML = `<tr class="empty-row"><td colspan="8">Ainda sem custos fixos. Cria o primeiro com "+ Novo custo fixo".</td></tr>`; return; }
   tbody.innerHTML = state.fixedCosts.map(c=>{
     const next = nextDueDateForDay(c.dueDay);
     const dleft = daysUntil(next);
+    const confirmed = isFixedCostConfirmed(c);
     return `<tr>
       <td onclick="toggleCustoActive('${c.id}')"><strong>${c.name}</strong></td>
       <td onclick="toggleCustoActive('${c.id}')">${c.category||'—'}</td>
       <td class="mono" onclick="toggleCustoActive('${c.id}')">${c.value}€</td>
       <td class="mono" onclick="toggleCustoActive('${c.id}')">dia ${c.dueDay}</td>
       <td onclick="toggleCustoActive('${c.id}')"><span class="pill ${dleft<=3?'overdue':'pending'}">${formatShort(next)}</span></td>
+      <td><span class="pill ${confirmed?'active':'pending'}" style="cursor:pointer;" onclick="toggleFixedCostConfirmed('${c.id}')">${confirmed?'Sim, já saiu':'Ainda não'}</span></td>
       <td onclick="toggleCustoActive('${c.id}')"><span class="pill ${c.active?'active':'inactive'}">${c.active?'Ativo':'Pausado'}</span></td>
       <td style="white-space:nowrap;">
         <button class="btn-ghost" style="padding:5px 10px;font-size:11px;" onclick="openModal('editar-custofixo','${c.id}')">Editar</button>
@@ -738,6 +747,17 @@ function renderCustosTable(){
       </td>
     </tr>`;
   }).join('');
+}
+function toggleFixedCostConfirmed(id){
+  const c = state.fixedCosts.find(x=>x.id===id);
+  if(!c) return;
+  if(!c.paidMonths) c.paidMonths = {};
+  const key = monthKey();
+  c.paidMonths[key] = !c.paidMonths[key];
+  logActivity((c.paidMonths[key]?'Confirmada saída do custo fixo: ':'Desmarcada saída do custo fixo: ')+c.name);
+  saveState();
+  toast(c.paidMonths[key] ? 'Marcado como já saído da conta' : 'Marcado como ainda não saído');
+  renderCustosTable(); renderDashboard(); renderFinanceiro();
 }
 function toggleCustoActive(id){
   const c = state.fixedCosts.find(x=>x.id===id);
@@ -1194,7 +1214,7 @@ function renderAnalise(){
 
   const catTotals = {};
   state.movements.filter(m=>m.type==='despesa' && m.status!=='Cancelado').forEach(m=>{ catTotals[m.cat]=(catTotals[m.cat]||0)+m.value; });
-  state.fixedCosts.filter(c=>c.active).forEach(c=>{ catTotals[c.category]=(catTotals[c.category]||0)+c.value; });
+  state.fixedCosts.filter(c=>c.active && isFixedCostConfirmed(c)).forEach(c=>{ catTotals[c.category]=(catTotals[c.category]||0)+c.value; });
   const catRanked = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
   const catMax = Math.max(...catRanked.map(([,v])=>v),1);
 
@@ -1451,7 +1471,7 @@ function openModal(type, clientId){
       if(isRecurring){
         const day=parseInt(document.getElementById('f-recurday').value,10);
         if(!day||day<1||day>31){ toast('Indica um dia de pagamento válido (1–31)'); return; }
-        state.fixedCosts.unshift({id:uid('fc'),name:desc,category:getCategoryValue()||'Geral',value,dueDay:day,active:true});
+        state.fixedCosts.unshift({id:uid('fc'),name:desc,category:getCategoryValue()||'Geral',value,dueDay:day,active:true,paidMonths:{}});
         logActivity('Novo custo fixo: '+desc+' ('+value+'€/mês, dia '+day+')');
         saveState();
         checkFixedCostAlerts();
@@ -1730,7 +1750,7 @@ function openModal(type, clientId){
       const category = catSel==='Outro' ? (document.getElementById('f-cfcat-outro').value.trim()||'Outro') : catSel;
       if(!name||!value){ toast('Preenche o nome e o valor'); return; }
       if(!day||day<1||day>31){ toast('Indica um dia de pagamento válido (1–31)'); return; }
-      state.fixedCosts.unshift({id:uid('fc'),name,category:category||'Geral',value,dueDay:day,active:true});
+      state.fixedCosts.unshift({id:uid('fc'),name,category:category||'Geral',value,dueDay:day,active:true,paidMonths:{}});
       logActivity('Novo custo fixo: '+name+' ('+value+'€/mês, dia '+day+')');
       saveState();
       checkFixedCostAlerts();
