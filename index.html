@@ -171,8 +171,8 @@ tr:hover td{background:var(--surface-2);}
 .modal-close{background:var(--surface-2);border:none;color:var(--muted);width:28px;height:28px;border-radius:8px;font-size:16px;}
 .modal-body{padding:18px 20px;display:flex;flex-direction:column;gap:14px;}
 .field label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;}
-.field input,.field select{width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:9px 11px;font-size:13px;color:var(--text);color-scheme:dark;}
-.field input:focus,.field select:focus{outline:none;border-color:var(--accent);}
+.field input,.field select,.field textarea{width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:9px 11px;font-size:13px;color:var(--text);color-scheme:dark;font-family:inherit;}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent);}
 .modal-foot{display:flex;gap:10px;padding:16px 20px;border-top:1px solid var(--border);}
 .modal-foot .btn-primary,.modal-foot .btn-ghost{flex:1;}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface-2);border:1px solid var(--accent);color:var(--text);padding:10px 18px;border-radius:10px;font-size:12.5px;z-index:200;opacity:0;transition:.25s;pointer-events:none;}
@@ -377,6 +377,7 @@ const DEFAULT_STATE = {
   events:[],
   fixedCosts:[],
   settings:{dark:true,notifDeadlines:true,autoBackup:false,pin:false,systemNotif:false,company:{name:'Lente Viva',nif:'',logo:null}},
+  sync:{generatedAt:0},
   activity:[]
 };
 
@@ -389,6 +390,7 @@ function loadState(){
       const merged = {...structuredClone(DEFAULT_STATE), ...parsed};
       merged.settings = {...structuredClone(DEFAULT_STATE.settings), ...(parsed.settings||{})};
       merged.settings.company = {...structuredClone(DEFAULT_STATE.settings.company), ...((parsed.settings||{}).company||{})};
+      merged.sync = {...structuredClone(DEFAULT_STATE.sync), ...(parsed.sync||{})};
       return merged;
     }
   }catch(e){}
@@ -711,7 +713,7 @@ function renderFinanceiro(){
         <div class="kpi-value warn">${fixedCostsMonthlyTotal().toLocaleString('pt-PT')}€ <span style="font-size:11px;color:var(--muted);font-weight:400;">confirmado(s) como já saído da conta</span></div>
         <div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5;">Total comprometido (todos os custos ativos): ${fixedCostsCommittedTotal().toLocaleString('pt-PT')}€/mês. Só o valor confirmado como "já saiu da conta" entra no saldo, nas despesas e na faturação.</div>
       </div>
-      <div class="row-card"><table><thead><tr><th>Nome</th><th>Categoria</th><th>Valor</th><th>Dia de pagamento</th><th>Próximo pagamento</th><th>Saiu da conta (mês atual)</th><th>Estado</th><th>Ações</th></tr></thead><tbody id="custosTbody"></tbody></table></div>
+      <div class="row-card"><table><thead><tr><th>Nome</th><th>Categoria</th><th>Associado a</th><th>Valor</th><th>Dia de pagamento</th><th>Próximo pagamento</th><th>Saiu da conta (mês atual)</th><th>Estado</th><th>Ações</th></tr></thead><tbody id="custosTbody"></tbody></table></div>
     </div>
     <div id="fin-relatorios" style="${tab==='relatorios'?'':'display:none'}">
       <div class="grid-2">
@@ -731,7 +733,7 @@ function renderFinanceiro(){
 function renderCustosTable(){
   const tbody = document.getElementById('custosTbody');
   if(!tbody) return;
-  if(state.fixedCosts.length===0){ tbody.innerHTML = `<tr class="empty-row"><td colspan="8">Ainda sem custos fixos. Cria o primeiro com "+ Novo custo fixo".</td></tr>`; return; }
+  if(state.fixedCosts.length===0){ tbody.innerHTML = `<tr class="empty-row"><td colspan="9">Ainda sem custos fixos. Cria o primeiro com "+ Novo custo fixo".</td></tr>`; return; }
   tbody.innerHTML = state.fixedCosts.map(c=>{
     const next = nextDueDateForDay(c.dueDay);
     const dleft = daysUntil(next);
@@ -739,6 +741,7 @@ function renderCustosTable(){
     return `<tr>
       <td onclick="toggleCustoActive('${c.id}')"><strong>${c.name}</strong></td>
       <td onclick="toggleCustoActive('${c.id}')">${c.category||'—'}</td>
+      <td onclick="toggleCustoActive('${c.id}')">${c.client ? c.client : '<span style="color:var(--muted);">Empresa (geral)</span>'}</td>
       <td class="mono" onclick="toggleCustoActive('${c.id}')">${c.value}€</td>
       <td class="mono" onclick="toggleCustoActive('${c.id}')">dia ${c.dueDay}</td>
       <td onclick="toggleCustoActive('${c.id}')"><span class="pill ${dleft<=3?'overdue':'pending'}">${formatShort(next)}</span></td>
@@ -760,7 +763,7 @@ function toggleFixedCostConfirmed(id){
   logActivity((c.paidMonths[key]?'Confirmada saída do custo fixo: ':'Desmarcada saída do custo fixo: ')+c.name);
   saveState();
   toast(c.paidMonths[key] ? 'Marcado como já saído da conta' : 'Marcado como ainda não saído');
-  renderCustosTable(); renderDashboard(); renderFinanceiro();
+  renderCustosTable(); refreshFinancialViews();
 }
 function toggleCustoActive(id){
   const c = state.fixedCosts.find(x=>x.id===id);
@@ -769,7 +772,7 @@ function toggleCustoActive(id){
   logActivity((c.active?'Reativado':'Pausado')+' custo fixo: '+c.name);
   saveState();
   toast(c.active ? 'Custo fixo ativo' : 'Custo fixo pausado');
-  renderCustosTable(); renderDashboard();
+  renderCustosTable(); refreshFinancialViews();
 }
 function deleteCusto(id){
   const c = state.fixedCosts.find(x=>x.id===id);
@@ -780,7 +783,7 @@ function deleteCusto(id){
   logActivity('Custo fixo apagado: '+c.name);
   saveState();
   toast('Custo fixo apagado');
-  renderCustosTable(); renderDashboard();
+  renderCustosTable(); refreshFinancialViews();
 }
 function renderFinTable(){
   const q = (document.getElementById('finSearch')?.value || '').toLowerCase();
@@ -822,7 +825,7 @@ function toggleMovementStatus(id){
   logActivity((m.status==='Pago'?'Marcado como pago: ':'Marcado como pendente: ')+m.desc);
   saveState();
   toast(m.status==='Pago' ? 'Marcado como pago' : 'Marcado como pendente');
-  renderFinTable(); renderNav(); renderDashboard();
+  renderFinTable(); refreshFinancialViews();
 }
 function cancelMovement(id){
   const m = state.movements.find(x=>x.id===id);
@@ -832,7 +835,7 @@ function cancelMovement(id){
   logActivity('Movimento cancelado: '+m.desc);
   saveState();
   toast('Movimento cancelado');
-  renderFinTable(); renderNav(); renderDashboard();
+  renderFinTable(); refreshFinancialViews();
 }
 function reactivateMovement(id){
   const m = state.movements.find(x=>x.id===id);
@@ -841,7 +844,7 @@ function reactivateMovement(id){
   logActivity('Movimento reativado: '+m.desc);
   saveState();
   toast('Movimento reativado como pendente');
-  renderFinTable(); renderNav(); renderDashboard();
+  renderFinTable(); refreshFinancialViews();
 }
 function deleteMovement(id){
   const m = state.movements.find(x=>x.id===id);
@@ -851,7 +854,7 @@ function deleteMovement(id){
   logActivity('Movimento apagado: '+m.desc);
   saveState();
   toast('Movimento apagado');
-  renderFinTable(); renderNav(); renderDashboard();
+  renderFinTable(); refreshFinancialViews();
 }
 
 /* ---------------- CLIENTES ---------------- */
@@ -1120,8 +1123,15 @@ function openDoc(id){
 
 /* ---------------- GESTÃO CLIENTES (custo de aquisição, custos associados e faturação por cliente) ---------------- */
 function setGcTab(tab){ state.gcTab = tab; saveState(); renderGestaoClientes(); }
+function clientFixedCostsTotal(clientName){
+  return state.fixedCosts.filter(c=>c.client===clientName).reduce((s,c)=>{
+    const confirmedMonths = Object.values(c.paidMonths||{}).filter(Boolean).length;
+    return s + (c.value * confirmedMonths);
+  }, 0);
+}
 function clientCostsTotal(clientName){
-  return state.movements.filter(m=>m.client===clientName && m.type==='despesa' && m.status!=='Cancelado').reduce((s,m)=>s+m.value,0);
+  const movementCosts = state.movements.filter(m=>m.client===clientName && m.type==='despesa' && m.status!=='Cancelado').reduce((s,m)=>s+m.value,0);
+  return movementCosts + clientFixedCostsTotal(clientName);
 }
 function clientProfitData(c){
   const totalFaturado = billedTotal(c.name);
@@ -1213,6 +1223,11 @@ function renderGcDetail(id){
   const p = clientProfitData(c);
   const catTotals = {};
   state.movements.filter(m=>m.client===c.name && m.type==='despesa' && m.status!=='Cancelado').forEach(m=>{ catTotals[m.cat]=(catTotals[m.cat]||0)+m.value; });
+  const clientFixedCosts = state.fixedCosts.filter(fc=>fc.client===c.name);
+  clientFixedCosts.forEach(fc=>{
+    const confirmedMonths = Object.values(fc.paidMonths||{}).filter(Boolean).length;
+    if(confirmedMonths>0) catTotals[fc.category]=(catTotals[fc.category]||0)+(fc.value*confirmedMonths);
+  });
   const catRanked = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
   const catMax = Math.max(...catRanked.map(([,v])=>v),1);
   const series = computeMonthlySeriesForClient(c.name, 6);
@@ -1253,6 +1268,7 @@ function renderGcDetail(id){
           <div class="setting-row"><div class="setting-label">Margem líquida</div><div class="mono" style="color:${p.margem>=0?'var(--ok)':'var(--danger)'};">${p.margem.toLocaleString('pt-PT')}€</div></div>
           <div class="setting-row"><div class="setting-label">Payback do custo de aquisição</div><div class="mono">${p.paybackMeses!==null ? p.paybackMeses+' mês(es)' : '—'}</div></div>
           <div class="setting-row"><div class="setting-label">Documentos associados</div><div class="mono">${docsCount}</div></div>
+          <div class="setting-row"><div class="setting-label">Custos fixos associados</div><div class="mono">${clientFixedCosts.length ? `<button class="card-link" onclick="goToView('financeiro');setFinTab('custos')">${clientFixedCosts.length} ver →</button>` : '0'}</div></div>
         </div>
       </div>
     </div>`;
@@ -1529,6 +1545,18 @@ function renderDefinicoes(){
         <div style="font-size:10.5px;color:var(--muted);line-height:1.5;margin-top:2px;">Enquanto a app estiver aberta (ou em segundo plano no telemóvel), os alertas aparecem como notificações reais do sistema, não apenas dentro do painel.</div>
       </div>
     </div>
+    <div class="card" style="margin-top:16px;">
+      <div class="card-head"><div class="card-title">Chave de sincronização entre dispositivos</div><button class="card-link" onclick="regenerateSyncKey()">Gerar nova chave</button></div>
+      <div style="font-size:11.5px;color:var(--muted);line-height:1.6;margin-bottom:10px;">Copia esta chave e cola-a no campo "Atualizar com uma chave" abaixo, na app aberta noutro telemóvel ou computador, para atualizar esse dispositivo com os dados atuais. Cada chave é válida durante 4 horas a partir do momento em que é gerada; passado esse tempo, gera uma nova antes de partilhares. A chave renova-se sozinha a cada 4 horas enquanto esta app estiver aberta neste dispositivo.</div>
+      <div class="field"><label>A tua chave (válida até ${new Date((state.sync.generatedAt||Date.now())+SYNC_VALID_MS).toLocaleString('pt-PT',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'})})</label>
+        <textarea id="syncKeyBox" readonly style="width:100%;min-height:70px;font-family:var(--mono);font-size:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:10px;color:var(--text);resize:vertical;">${currentSyncKey()}</textarea>
+      </div>
+      <button class="btn-primary" onclick="copySyncKey()">Copiar chave</button>
+      <div style="height:16px;"></div>
+      <div class="field"><label>Atualizar este dispositivo com uma chave</label><textarea id="syncKeyInput" placeholder="Cola aqui a chave copiada do outro dispositivo..." style="width:100%;min-height:70px;font-family:var(--mono);font-size:10px;border-radius:9px;padding:10px;"></textarea></div>
+      <button class="btn-ghost" onclick="importSyncKey()">Atualizar com esta chave</button>
+      <div style="font-size:10.5px;color:var(--muted);line-height:1.5;margin-top:8px;">Isto substitui os dados guardados neste dispositivo pelos dados contidos na chave — não junta os dois, escolhe o dispositivo mais atualizado como origem.</div>
+    </div>
     <div class="card" style="margin-top:16px;border-color:var(--danger);">
       <div class="card-head"><div class="card-title" style="color:var(--danger);">Zona de risco</div></div>
       <div class="setting-row">
@@ -1582,6 +1610,77 @@ function resetAppData(){
   goToView('dashboard');
   toast('Dados repostos a zero');
 }
+
+/* ---------------- CHAVE DE SINCRONIZAÇÃO ---------------- */
+const SYNC_VALID_MS = 4*60*60*1000; // 4 horas
+const SYNC_PREFIX = 'LV1-';
+function encodeSyncKey(ts){
+  const payload = {v:1, ts, data:state};
+  const json = JSON.stringify(payload);
+  return SYNC_PREFIX + btoa(unescape(encodeURIComponent(json)));
+}
+function decodeSyncKey(code){
+  const clean = code.trim();
+  const stripped = clean.startsWith(SYNC_PREFIX) ? clean.slice(SYNC_PREFIX.length) : clean;
+  const json = decodeURIComponent(escape(atob(stripped)));
+  const payload = JSON.parse(json);
+  if(!payload || payload.v!==1 || !payload.data || !payload.ts) throw new Error('formato inválido');
+  return payload;
+}
+function currentSyncKey(){
+  if(!state.sync.generatedAt || (Date.now()-state.sync.generatedAt) > SYNC_VALID_MS){
+    state.sync.generatedAt = Date.now();
+    saveState();
+  }
+  return encodeSyncKey(state.sync.generatedAt);
+}
+function regenerateSyncKey(){
+  state.sync.generatedAt = Date.now();
+  saveState();
+  renderDefinicoes();
+  toast('Nova chave gerada');
+}
+function copySyncKey(){
+  const el = document.getElementById('syncKeyBox');
+  if(!el) return;
+  el.select();
+  el.setSelectionRange(0, 999999);
+  try{
+    navigator.clipboard.writeText(el.value);
+    toast('Chave copiada');
+  }catch(e){
+    document.execCommand('copy');
+    toast('Chave copiada');
+  }
+}
+function importSyncKey(){
+  const input = document.getElementById('syncKeyInput');
+  if(!input || !input.value.trim()){ toast('Cola primeiro a chave'); return; }
+  let payload;
+  try{
+    payload = decodeSyncKey(input.value);
+  }catch(e){
+    toast('Chave inválida — confirma que a copiaste por inteiro');
+    return;
+  }
+  if((Date.now()-payload.ts) > SYNC_VALID_MS){
+    toast('Esta chave expirou (validade de 4 horas) — pede uma chave atual no outro dispositivo');
+    return;
+  }
+  if(!confirm('Isto substitui todos os dados guardados neste dispositivo pelos dados da chave. Continuar?')) return;
+  state = payload.data;
+  state.sync = state.sync || {generatedAt: Date.now()};
+  saveState();
+  renderAll();
+  toast('Dados atualizados a partir da chave');
+}
+setInterval(()=>{
+  if(!state.sync.generatedAt || (Date.now()-state.sync.generatedAt) > SYNC_VALID_MS){
+    state.sync.generatedAt = Date.now();
+    saveState();
+    if(state.currentView==='definicoes') renderDefinicoes();
+  }
+}, 15*60*1000);
 
 /* ---------------- MODALS ---------------- */
 const CLIENT_NAMES = ()=> state.clients.map(c=>c.name);
@@ -1946,9 +2045,10 @@ function openModal(type, clientId){
       <div class="field"><label>Categoria</label><select id="f-cfcat">${EXPENSE_CATEGORIES.map(c=>`<option>${c}</option>`).join('')}</select>
         <div id="f-cfcat-outro-wrap" style="display:none;margin-top:8px;"><input id="f-cfcat-outro" placeholder="Especifica a categoria"></div>
       </div>
+      <div class="field"><label>Associar a</label><select id="f-cfclient"><option value="">Empresa (custo geral)</option>${CLIENT_NAMES().map(n=>`<option>${n}</option>`).join('')}</select></div>
       <div class="field"><label>Valor mensal (€)</label><input id="f-cfvalue" type="number" placeholder="0"></div>
       <div class="field"><label>Dia de pagamento (1–31)</label><input id="f-cfday" type="number" min="1" max="31" placeholder="Ex: 8"></div>
-      <div style="font-size:11px;color:var(--muted);">Vais receber um alerta 3 dias antes da data de pagamento, todos os meses.</div>`;
+      <div style="font-size:11px;color:var(--muted);">Vais receber um alerta 3 dias antes da data de pagamento, todos os meses. Se associares a um cliente, este custo passa a contar na rentabilidade desse cliente em Gestão Clientes.</div>`;
     document.getElementById('f-cfcat').addEventListener('change', ()=>{
       document.getElementById('f-cfcat-outro-wrap').style.display = document.getElementById('f-cfcat').value==='Outro' ? 'block' : 'none';
     });
@@ -1958,10 +2058,11 @@ function openModal(type, clientId){
       const day=parseInt(document.getElementById('f-cfday').value,10);
       const catSel = document.getElementById('f-cfcat').value;
       const category = catSel==='Outro' ? (document.getElementById('f-cfcat-outro').value.trim()||'Outro') : catSel;
+      const client = document.getElementById('f-cfclient').value || '';
       if(!name||!value){ toast('Preenche o nome e o valor'); return; }
       if(!day||day<1||day>31){ toast('Indica um dia de pagamento válido (1–31)'); return; }
-      state.fixedCosts.unshift({id:uid('fc'),name,category:category||'Geral',value,dueDay:day,active:true,paidMonths:{}});
-      logActivity('Novo custo fixo: '+name+' ('+value+'€/mês, dia '+day+')');
+      state.fixedCosts.unshift({id:uid('fc'),name,category:category||'Geral',client,value,dueDay:day,active:true,paidMonths:{}});
+      logActivity('Novo custo fixo: '+name+' ('+value+'€/mês, dia '+day+')'+(client?' — '+client:''));
       saveState();
       checkFixedCostAlerts();
       closeModal(); goToView('financeiro'); setFinTab('custos'); toast('Custo fixo adicionado');
@@ -1977,6 +2078,7 @@ function openModal(type, clientId){
       <div class="field"><label>Categoria</label><select id="f-ecfcat">${EXPENSE_CATEGORIES.map(cat=>`<option ${cat===c.category?'selected':''}>${cat}</option>`).join('')}</select>
         <div id="f-ecfcat-outro-wrap" style="margin-top:8px;${EXPENSE_CATEGORIES.includes(c.category)?'display:none;':''}"><input id="f-ecfcat-outro" placeholder="Especifica a categoria" value="${EXPENSE_CATEGORIES.includes(c.category)?'':(c.category||'')}"></div>
       </div>
+      <div class="field"><label>Associar a</label><select id="f-ecfclient"><option value="" ${!c.client?'selected':''}>Empresa (custo geral)</option>${CLIENT_NAMES().map(n=>`<option ${c.client===n?'selected':''}>${n}</option>`).join('')}</select></div>
       <div class="field"><label>Valor mensal (€)</label><input id="f-ecfvalue" type="number" value="${c.value}"></div>
       <div class="field"><label>Dia de pagamento (1–31)</label><input id="f-ecfday" type="number" min="1" max="31" value="${c.dueDay}"></div>
       <div class="field"><label>Estado</label><select id="f-ecfactive">
@@ -1992,9 +2094,10 @@ function openModal(type, clientId){
       const day=parseInt(document.getElementById('f-ecfday').value,10);
       const catSel = document.getElementById('f-ecfcat').value;
       const category = catSel==='Outro' ? (document.getElementById('f-ecfcat-outro').value.trim()||'Outro') : catSel;
+      const client = document.getElementById('f-ecfclient').value || '';
       if(!name||!value){ toast('Preenche o nome e o valor'); return; }
       if(!day||day<1||day>31){ toast('Indica um dia de pagamento válido (1–31)'); return; }
-      c.name = name; c.category = category||'Geral'; c.value = value; c.dueDay = day;
+      c.name = name; c.category = category||'Geral'; c.client = client; c.value = value; c.dueDay = day;
       c.active = document.getElementById('f-ecfactive').value==='1';
       logActivity('Custo fixo editado: '+name);
       saveState();
@@ -2008,6 +2111,15 @@ document.getElementById('modalOverlay').addEventListener('click',(e)=>{ if(e.tar
 document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeModal(); });
 
 /* ---------------- RENDER ALL ---------------- */
+function refreshFinancialViews(){
+  renderNav();
+  renderDashboard();
+  renderFinanceiro();
+  renderClientes();
+  renderGestaoClientes();
+  renderAnalise();
+}
+
 function renderAll(){
   renderBrand();
   renderNav();
