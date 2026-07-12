@@ -296,7 +296,7 @@ tr:hover td{background:var(--surface-2);}
       <div class="view" id="view-financeiro"></div>
       <div class="view" id="view-clientes"></div>
       <div class="view" id="view-trabalho"></div>
-      <div class="view" id="view-documentos"></div>
+      <div class="view" id="view-gestaoclientes"></div>
       <div class="view" id="view-analise"></div>
       <div class="view" id="view-definicoes"></div>
     </div>
@@ -325,7 +325,7 @@ const ICONS = {
   financeiro:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v20M17 5.5c0-1.9-2.2-3.5-5-3.5s-5 1.5-5 3.5 2.2 3 5 3.5 5 1.6 5 3.5-2.2 3.5-5 3.5-5-1.6-5-3.5"/></svg>',
   clientes:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.7-3.6 3.2-6 6.5-6s5.8 2.4 6.5 6"/><circle cx="17.5" cy="8.5" r="2.7"/><path d="M15.5 12.5c2.6.2 4.6 2.3 5 5.5"/></svg>',
   trabalho:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m4 12 5 5L20 6"/></svg>',
-  documentos:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2h9l4 4v16H6z"/><path d="M14 2v5h5"/></svg>',
+  gestaoclientes:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c.6-3.4 3-5.6 6-5.6s5.4 2.2 6 5.6"/><circle cx="18" cy="6" r="2.4"/><path d="M15.3 6h-1.1M18 3.6v-.1M18 8.4v.1M20.4 6h.1M15.9 3.5l.1.1M20 3.5l-.1.1M15.9 8.5l.1-.1M20 8.5l-.1-.1"/></svg>',
   definicoes:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.5-2-3.4-2.4.7a7.5 7.5 0 0 0-1.7-1L14.8 3h-4l-.5 2.5a7.5 7.5 0 0 0-1.7 1l-2.4-.7-2 3.4L6.2 11a7.6 7.6 0 0 0 0 2l-2 1.5 2 3.4 2.4-.7c.5.4 1.1.7 1.7 1L11 21.9h4l.5-2.5c.6-.3 1.2-.6 1.7-1l2.4.7 2-3.4z"/></svg>',
   doc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 2h9l4 4v16H6z"/><path d="M14 2v5h5"/></svg>',
   plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg>',
@@ -338,7 +338,7 @@ const NAV = [
   {v:'financeiro', label:'Financeiro', mlabel:'Financeiro'},
   {v:'clientes', label:'Clientes', mlabel:'Clientes'},
   {v:'trabalho', label:'Trabalho', mlabel:'Trabalho'},
-  {v:'documentos', label:'Documentos', mlabel:'Docs'},
+  {v:'gestaoclientes', label:'Gestão Clientes', mlabel:'Rentab.'},
   {v:'analise', label:'Análise', mlabel:'Análise'},
   {v:'definicoes', label:'Definições', mlabel:'Config'}
 ];
@@ -363,7 +363,9 @@ const DEFAULT_STATE = {
   currentView:'dashboard',
   finTab:'registos',
   trabTab:'kanban',
+  gcTab:'rentabilidade',
   openClientId:null,
+  openProfitClientId:null,
   calMonth: new Date().getMonth(),
   calYear: new Date().getFullYear(),
   calSelectedDate: null,
@@ -457,6 +459,7 @@ function renderNav(){
       ${ICONS[n.v]} ${n.label}
       ${n.v==='financeiro' && pendingMovements()>0 ? `<span class="nav-badge">${pendingMovements()}</span>`:''}
       ${n.v==='trabalho' && openTasks()>0 ? `<span class="nav-badge">${openTasks()}</span>`:''}
+      ${n.v==='gestaoclientes' && negativeMarginClientsCount()>0 ? `<span class="nav-badge">${negativeMarginClientsCount()}</span>`:''}
     </button>`).join('');
   document.getElementById('bottomNav').innerHTML = NAV.map(n=>`
     <button class="bnav-item ${state.currentView===n.v?'active':''}" onclick="goToView('${n.v}')">
@@ -477,7 +480,7 @@ function goToView(v){
     financeiro:['Financeiro','Receitas, despesas, IVA e relatórios'],
     clientes:['Clientes','Gestão de clientes e projetos associados'],
     trabalho:['Trabalho','Tarefas e calendário da equipa'],
-    documentos:['Documentos','Arquivo central de ficheiros'],
+    gestaoclientes:['Gestão Clientes','Custo de aquisição, custos associados e faturação por cliente'],
     analise:['Análise da Empresa','Rentabilidade, tendências e risco do negócio'],
     definicoes:['Definições','Configuração geral da aplicação']
   };
@@ -924,6 +927,7 @@ function renderClientDetail(id){
           <div class="setting-row"><div class="setting-label">Email</div><div>${c.email||'—'}</div></div>
           <div class="setting-row"><div class="setting-label">Telefone</div><div class="mono">${c.phone||'—'}</div></div>
           <div class="setting-row"><div class="setting-label">Morada</div><div>${c.address||'—'}</div></div>
+          <div class="setting-row"><div class="setting-label">Custo de aquisição</div><div class="mono">${(c.acquisitionCost||0).toLocaleString('pt-PT')}€</div></div>
         </div>
       </div>
       <div id="cli-projetos" style="${cliTab==='projetos'?'':'display:none'}">
@@ -1097,27 +1101,7 @@ function calGoToday(){
   saveState(); renderCalendar();
 }
 
-/* ---------------- DOCUMENTOS ---------------- */
-function renderDocumentos(){
-  document.getElementById('view-documentos').innerHTML = `
-    <div class="toolbar">
-      <div class="tabs"><button class="tab-btn active">Todos</button></div>
-      <div>
-        <input class="search-input" id="docSearch" placeholder="Pesquisar documento..." oninput="renderDocGrid()">
-        <button class="btn-primary" onclick="openModal('documento')">+ Carregar ficheiro</button>
-      </div>
-    </div>
-    <div class="doc-grid" id="docGrid"></div>`;
-  renderDocGrid();
-}
-function renderDocGrid(){
-  const q = (document.getElementById('docSearch')?.value || '').toLowerCase();
-  const rows = state.docs.filter(d=>d.name.toLowerCase().includes(q));
-  const grid = document.getElementById('docGrid');
-  if(!grid) return;
-  if(rows.length===0){ grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">${state.docs.length===0 ? 'Ainda sem documentos. Carrega o primeiro ficheiro.' : 'Nenhum documento encontrado.'}</div>`; return; }
-  grid.innerHTML = rows.map(d=>`<div class="doc-card" onclick="openDoc('${d.id}')" style="cursor:pointer;">${d.thumb?`<img src="${d.thumb}" style="width:100%;height:52px;object-fit:cover;border-radius:8px;margin-bottom:8px;">`:ICONS.doc}<div class="doc-name">${d.name}</div><div class="doc-meta">${d.tag} · ${d.type}${d.size?' · '+d.size:''}</div></div>`).join('');
-}
+/* ---------------- DOCUMENTOS (auxiliares, usados dentro de Gestão Clientes e da ficha do cliente) ---------------- */
 function openDoc(id){
   const d = state.docs.find(x=>x.id===id);
   if(!d) return;
@@ -1134,6 +1118,169 @@ function openDoc(id){
   }
 }
 
+/* ---------------- GESTÃO CLIENTES (custo de aquisição, custos associados e faturação por cliente) ---------------- */
+function setGcTab(tab){ state.gcTab = tab; saveState(); renderGestaoClientes(); }
+function clientCostsTotal(clientName){
+  return state.movements.filter(m=>m.client===clientName && m.type==='despesa' && m.status!=='Cancelado').reduce((s,m)=>s+m.value,0);
+}
+function clientProfitData(c){
+  const totalFaturado = billedTotal(c.name);
+  const custosAssociados = clientCostsTotal(c.name);
+  const acquisitionCost = c.acquisitionCost || 0;
+  const custoTotal = custosAssociados + acquisitionCost;
+  const margem = totalFaturado - custoTotal;
+  const roi = custoTotal>0 ? Math.round((margem/custoTotal)*100) : (totalFaturado>0 ? 100 : 0);
+  const monthsActive = clientActiveMonths(c.name);
+  const avgMonthlyMargem = monthsActive>0 ? (totalFaturado-custosAssociados)/monthsActive : 0;
+  const paybackMeses = acquisitionCost>0 && avgMonthlyMargem>0 ? Math.ceil(acquisitionCost/avgMonthlyMargem) : null;
+  return {client:c, totalFaturado, custosAssociados, acquisitionCost, custoTotal, margem, roi, paybackMeses};
+}
+function clientActiveMonths(clientName){
+  const dates = state.movements.filter(m=>m.client===clientName && m.status!=='Cancelado').map(m=>m.date).filter(Boolean);
+  if(dates.length===0) return 0;
+  const keys = new Set(dates.map(d=>d.slice(0,7)));
+  return keys.size;
+}
+function computeAllClientProfits(){
+  return state.clients.map(clientProfitData).sort((a,b)=>b.margem-a.margem);
+}
+function negativeMarginClientsCount(){
+  return computeAllClientProfits().filter(p=>p.margem<0 && (p.totalFaturado>0 || p.custoTotal>0)).length;
+}
+function renderGestaoClientes(){
+  const tab = state.gcTab;
+  const profits = computeAllClientProfits();
+  const totals = profits.reduce((acc,p)=>{acc.faturado+=p.totalFaturado;acc.custos+=p.custoTotal;acc.margem+=p.margem;return acc;},{faturado:0,custos:0,margem:0});
+  document.getElementById('view-gestaoclientes').innerHTML = `
+    <div class="toolbar">
+      <div class="tabs">
+        <button class="tab-btn ${tab==='rentabilidade'?'active':''}" onclick="setGcTab('rentabilidade')">Rentabilidade por Cliente</button>
+        <button class="tab-btn ${tab==='documentos'?'active':''}" onclick="setGcTab('documentos')">Documentos</button>
+      </div>
+      <div>
+        ${tab==='documentos' ? `<button class="btn-primary" onclick="openModal('documento')">+ Carregar ficheiro</button>` : `<button class="btn-primary" onclick="openModal('cliente')">+ Novo cliente</button>`}
+      </div>
+    </div>
+    <div id="gc-rentabilidade" style="${tab==='rentabilidade'?'':'display:none'}">
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-label">Faturado total (clientes)</div><div class="kpi-value pos">${totals.faturado.toLocaleString('pt-PT')}€</div><div class="kpi-delta">Receitas pagas, por cliente</div></div>
+        <div class="kpi"><div class="kpi-label">Custo total (aquisição + associados)</div><div class="kpi-value">${totals.custos.toLocaleString('pt-PT')}€</div><div class="kpi-delta">Soma de todos os clientes</div></div>
+        <div class="kpi"><div class="kpi-label">Margem total</div><div class="kpi-value ${totals.margem>=0?'pos':'warn'}">${totals.margem.toLocaleString('pt-PT')}€</div><div class="kpi-delta">Faturado − custos</div></div>
+      </div>
+      <div class="row-card" style="margin-bottom:16px;">
+        <table><thead><tr><th>Cliente</th><th>Custo de aquisição</th><th>Custos associados</th><th>Faturado</th><th>Margem</th><th>ROI</th><th>Payback</th><th></th></tr></thead>
+        <tbody id="gcTbody"></tbody></table>
+      </div>
+      <div id="gcDetailWrap"></div>
+    </div>
+    <div id="gc-documentos" style="${tab==='documentos'?'':'display:none'}">
+      <input class="search-input" id="docSearch" placeholder="Pesquisar documento..." oninput="renderDocGrid()" style="margin-bottom:14px;width:260px;">
+      <div class="doc-grid" id="docGrid"></div>
+    </div>`;
+  if(tab==='rentabilidade'){
+    renderGcTable(profits);
+    if(state.openProfitClientId) renderGcDetail(state.openProfitClientId);
+  }
+  if(tab==='documentos') renderDocGrid();
+}
+function renderGcTable(profits){
+  const tbody = document.getElementById('gcTbody');
+  if(!tbody) return;
+  if(!profits || profits.length===0){ tbody.innerHTML = `<tr class="empty-row"><td colspan="8">Ainda sem clientes. Cria o primeiro em "+ Novo cliente".</td></tr>`; return; }
+  tbody.innerHTML = profits.map(p=>`
+    <tr onclick="openGcDetail('${p.client.id}')">
+      <td><strong>${p.client.name}</strong></td>
+      <td class="mono">${p.acquisitionCost.toLocaleString('pt-PT')}€</td>
+      <td class="mono">${p.custosAssociados.toLocaleString('pt-PT')}€</td>
+      <td class="mono" style="color:var(--ok);">${p.totalFaturado.toLocaleString('pt-PT')}€</td>
+      <td class="mono" style="color:${p.margem>=0?'var(--ok)':'var(--danger)'};">${p.margem.toLocaleString('pt-PT')}€</td>
+      <td><span class="pill ${p.roi>=0?'active':'overdue'}">${p.roi}%</span></td>
+      <td class="mono">${p.paybackMeses!==null ? p.paybackMeses+' mês(es)' : '—'}</td>
+      <td style="color:var(--muted)">→</td>
+    </tr>`).join('');
+}
+function openGcDetail(id){
+  state.openProfitClientId = state.openProfitClientId===id ? null : id;
+  saveState();
+  renderGcDetail(state.openProfitClientId);
+}
+function renderGcDetail(id){
+  const wrap = document.getElementById('gcDetailWrap');
+  if(!wrap) return;
+  if(!id){ wrap.innerHTML=''; return; }
+  const c = state.clients.find(x=>x.id===id);
+  if(!c){ wrap.innerHTML=''; return; }
+  const p = clientProfitData(c);
+  const catTotals = {};
+  state.movements.filter(m=>m.client===c.name && m.type==='despesa' && m.status!=='Cancelado').forEach(m=>{ catTotals[m.cat]=(catTotals[m.cat]||0)+m.value; });
+  const catRanked = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
+  const catMax = Math.max(...catRanked.map(([,v])=>v),1);
+  const series = computeMonthlySeriesForClient(c.name, 6);
+  const maxVal = Math.max(...series.map(s=>Math.max(s.receita,s.despesa)),1);
+  const docsCount = state.docs.filter(d=>d.clientId===c.id).length;
+  const relatedMovements = state.movements.filter(m=>m.client===c.name).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,8);
+
+  wrap.innerHTML = `
+    <div class="card client-detail">
+      <div class="card-head">
+        <div class="card-title">${c.name} — rentabilidade em detalhe</div>
+        <button class="card-link" onclick="openModal('editar-cliente','${c.id}')">Editar custo de aquisição</button>
+      </div>
+      <div class="grid-2" style="margin-bottom:0;">
+        <div class="card">
+          <div class="card-head"><div class="card-title">Faturado vs custos — últimos 6 meses</div></div>
+          ${state.movements.filter(m=>m.client===c.name).length===0 ? `<div class="empty-state">Sem movimentos associados a este cliente ainda.</div>` : `
+          <div class="chart">
+            ${series.map(s=>`<div class="bar-col"><div class="bar" style="height:${Math.max(4,(s.receita/maxVal)*100)}%;"></div><div class="bar-label">${s.label}</div></div>`).join('')}
+          </div>
+          <div style="font-size:10.5px;color:var(--muted);margin-top:6px;">Barras = faturação paga por mês. Custos associados: ${p.custosAssociados.toLocaleString('pt-PT')}€ no total.</div>`}
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">Custos por categoria (este cliente)</div></div>
+          ${catRanked.length ? catRanked.map(([cat,val])=>`<div class="deadline-row"><span class="deadline-name">${cat}</span><span class="progress-bar"><span class="progress-fill" style="width:${(val/catMax)*100}%;"></span></span><span class="deadline-date mono">${val}€</span></div>`).join('') : '<div class="empty-state">Sem despesas associadas a este cliente.</div>'}
+        </div>
+      </div>
+      <div class="grid-2" style="margin-top:16px;margin-bottom:0;">
+        <div class="card">
+          <div class="card-head"><div class="card-title">Movimentos recentes</div></div>
+          ${relatedMovements.length ? relatedMovements.map(m=>`<div class="deadline-row"><span class="tag-dot" style="background:${m.type==='despesa'?'var(--danger)':'var(--ok)'}"></span><span class="deadline-name">${m.desc}</span><span class="deadline-date mono">${m.type==='despesa'?'-':'+'}${m.value}€</span></div>`).join('') : '<div class="empty-state">Sem movimentos associados.</div>'}
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">Resumo</div></div>
+          <div class="setting-row"><div class="setting-label">Custo de aquisição</div><div class="mono">${p.acquisitionCost.toLocaleString('pt-PT')}€</div></div>
+          <div class="setting-row"><div class="setting-label">Custos associados</div><div class="mono">${p.custosAssociados.toLocaleString('pt-PT')}€</div></div>
+          <div class="setting-row"><div class="setting-label">Faturado total</div><div class="mono" style="color:var(--ok);">${p.totalFaturado.toLocaleString('pt-PT')}€</div></div>
+          <div class="setting-row"><div class="setting-label">Margem líquida</div><div class="mono" style="color:${p.margem>=0?'var(--ok)':'var(--danger)'};">${p.margem.toLocaleString('pt-PT')}€</div></div>
+          <div class="setting-row"><div class="setting-label">Payback do custo de aquisição</div><div class="mono">${p.paybackMeses!==null ? p.paybackMeses+' mês(es)' : '—'}</div></div>
+          <div class="setting-row"><div class="setting-label">Documentos associados</div><div class="mono">${docsCount}</div></div>
+        </div>
+      </div>
+    </div>`;
+}
+function computeMonthlySeriesForClient(clientName, n){
+  const now = new Date();
+  const arr = [];
+  for(let i=n-1;i>=0;i--){
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    const y=d.getFullYear(), m=d.getMonth();
+    const receita = state.movements.filter(mv=>{const dd=new Date(mv.date+'T00:00:00');return mv.client===clientName && dd.getFullYear()===y&&dd.getMonth()===m&&isRealizedReceita(mv);}).reduce((s,mv)=>s+mv.value,0);
+    const despesa = state.movements.filter(mv=>{const dd=new Date(mv.date+'T00:00:00');return mv.client===clientName && dd.getFullYear()===y&&dd.getMonth()===m&&mv.type==='despesa'&&mv.status!=='Cancelado';}).reduce((s,mv)=>s+mv.value,0);
+    arr.push({label:MONTHS[m].slice(0,3), y, m, receita, despesa});
+  }
+  return arr;
+}
+function renderDocGrid(){
+  const q = (document.getElementById('docSearch')?.value || '').toLowerCase();
+  const rows = state.docs.filter(d=>d.name.toLowerCase().includes(q));
+  const grid = document.getElementById('docGrid');
+  if(!grid) return;
+  if(rows.length===0){ grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">${state.docs.length===0 ? 'Ainda sem documentos. Carrega o primeiro ficheiro.' : 'Nenhum documento encontrado.'}</div>`; return; }
+  grid.innerHTML = rows.map(d=>{
+    const clientName = d.clientId ? (state.clients.find(x=>x.id===d.clientId)?.name || '') : '';
+    return `<div class="doc-card" onclick="openDoc('${d.id}')" style="cursor:pointer;">${d.thumb?`<img src="${d.thumb}" style="width:100%;height:52px;object-fit:cover;border-radius:8px;margin-bottom:8px;">`:ICONS.doc}<div class="doc-name">${d.name}</div><div class="doc-meta">${d.tag} · ${d.type}${d.size?' · '+d.size:''}${clientName?' · '+clientName:''}</div></div>`;
+  }).join('');
+}
+
 /* ---------------- ANÁLISE DA EMPRESA ---------------- */
 function computeMonthlySeries(n){
   const now = new Date();
@@ -1148,6 +1295,19 @@ function computeMonthlySeries(n){
     arr.push({label:MONTHS[m].slice(0,3), y, m, receita, despesa, lucro:receita-despesa});
   }
   return arr;
+}
+function forecastNextMonth(series){
+  const vals = series.map(s=>s.receita);
+  const n = vals.length;
+  if(n<2) return null;
+  let sumX=0,sumY=0,sumXY=0,sumXX=0;
+  vals.forEach((y,x)=>{ sumX+=x; sumY+=y; sumXY+=x*y; sumXX+=x*x; });
+  const denom = (n*sumXX - sumX*sumX);
+  if(denom===0) return Math.round(sumY/n);
+  const slope = (n*sumXY - sumX*sumY)/denom;
+  const intercept = (sumY - slope*sumX)/n;
+  const next = slope*n + intercept;
+  return Math.max(0, Math.round(next));
 }
 function generateSuggestions(m){
   const tips = [];
@@ -1200,17 +1360,42 @@ function generateSuggestions(m){
     push('info','Base de clientes ainda pequena','Tens '+state.clients.length+' cliente(s) ativo(s). Continuar a prospecção é importante para reduzir o risco de dependência e estabilizar a receita.');
   }
 
+  const profits = computeAllClientProfits();
+  const negativeClients = profits.filter(p=>p.margem<0 && (p.totalFaturado>0 || p.custoTotal>0));
+  if(negativeClients.length>0){
+    const names = negativeClients.slice(0,3).map(p=>p.client.name).join(', ');
+    push('danger','Cliente(s) com margem negativa','"'+names+'" '+(negativeClients.length>1?'estão':'está')+' a custar mais do que faturam (custo de aquisição + custos associados). Revê preços, âmbito de trabalho ou vale a pena continuar a servir este(s) cliente(s).');
+  }
+  const slowPayback = profits.filter(p=>p.paybackMeses!==null && p.paybackMeses>12);
+  if(slowPayback.length>0){
+    push('warn','Custo de aquisição a demorar a compensar','"'+slowPayback[0].client.name+'" demora cerca de '+slowPayback[0].paybackMeses+' meses a recuperar o custo de aquisição, ao ritmo atual. Considera acelerar a rentabilização ou rever o custo de aquisição para clientes semelhantes.');
+  }
+  const bestClient = profits[0];
+  if(bestClient && bestClient.margem>0 && profits.length>1){
+    push('ok','Cliente mais rentável identificado','"'+bestClient.client.name+'" é atualmente o cliente com maior margem líquida ('+bestClient.margem.toLocaleString('pt-PT')+'€). Vale a pena perceber o que torna esta relação rentável e replicar em novos clientes.');
+  }
+
+  if(m.forecast!==null && m.cur.receita>0){
+    const diff = Math.round(((m.forecast-m.cur.receita)/Math.max(m.cur.receita,1))*100);
+    if(diff<=-10){
+      push('warn','Previsão aponta para queda de receita','Com base na tendência dos últimos meses, o próximo mês pode ficar perto de '+m.forecast.toLocaleString('pt-PT')+'€ de receita, abaixo do mês atual. Vale a pena reforçar a prospecção agora.');
+    } else if(diff>=10){
+      push('ok','Previsão aponta para crescimento','Com base na tendência recente, o próximo mês pode aproximar-se de '+m.forecast.toLocaleString('pt-PT')+'€ de receita. Continua a manter o ritmo atual de entregas e faturação.');
+    }
+  }
+
   if(tips.length===0){
     push('ok','Sem alertas relevantes por agora','Os números estão equilibrados com base no que está registado. Continua a manter os registos atualizados para sugestões cada vez mais precisas.');
   }
 
   const order = {danger:0, warn:1, info:2, ok:3};
-  return tips.sort((a,b)=>order[a.level]-order[b.level]).slice(0,6);
+  return tips.sort((a,b)=>order[a.level]-order[b.level]).slice(0,8);
 }
 
 function renderAnalise(){
   const series = computeMonthlySeries(6);
   const maxAbs = Math.max(...series.map(s=>Math.abs(s.lucro)),1);
+  const forecast = forecastNextMonth(series);
 
   const catTotals = {};
   state.movements.filter(m=>m.type==='despesa' && m.status!=='Cancelado').forEach(m=>{ catTotals[m.cat]=(catTotals[m.cat]||0)+m.value; });
@@ -1234,7 +1419,11 @@ function renderAnalise(){
 
   const overhead = cur.receita>0 ? Math.round((fixedCostsMonthlyTotal()/cur.receita)*100) : (fixedCostsMonthlyTotal()>0?100:0);
 
-  const suggestions = generateSuggestions({cur, prev, pctChange, concentracao, topClientEntry, overhead, catRanked, taskRate});
+  const profits = computeAllClientProfits();
+  const bestClients = profits.filter(p=>p.totalFaturado>0 || p.custoTotal>0).slice(0,3);
+  const worstClients = [...profits].filter(p=>p.totalFaturado>0 || p.custoTotal>0).sort((a,b)=>a.margem-b.margem).slice(0,3);
+
+  const suggestions = generateSuggestions({cur, prev, pctChange, concentracao, topClientEntry, overhead, catRanked, taskRate, forecast});
   const LEVEL_STYLE = {
     danger:{color:'var(--danger)', bg:'rgba(226,104,95,.10)'},
     warn:{color:'var(--warn)', bg:'rgba(240,168,96,.10)'},
@@ -1244,7 +1433,7 @@ function renderAnalise(){
 
   document.getElementById('view-analise').innerHTML = `
     <div class="card" style="margin-bottom:20px;">
-      <div class="card-head"><div class="card-title">💡 Sugestões para melhorar as contas</div></div>
+      <div class="card-head"><div class="card-title">💡 Sugestões para melhorar as contas</div><span style="font-size:10.5px;color:var(--muted);">Atualizado em tempo real com os dados atuais</span></div>
       <div style="display:flex;flex-direction:column;gap:10px;">
         ${suggestions.map(s=>`
           <div style="background:${LEVEL_STYLE[s.level].bg};border:1px solid ${LEVEL_STYLE[s.level].color};border-radius:10px;padding:12px 14px;">
@@ -1261,6 +1450,7 @@ function renderAnalise(){
       <div class="kpi"><div class="kpi-label">Variação vs mês anterior</div><div class="kpi-value ${pctChange>=0?'pos':'warn'}">${pctChange>=0?'+':''}${pctChange}%</div><div class="kpi-delta">Receita deste mês vs anterior</div></div>
       <div class="kpi"><div class="kpi-label">Concentração de clientes</div><div class="kpi-value ${concentracao>50?'warn':''}">${concentracao}%</div><div class="kpi-delta">${topClientEntry?topClientEntry[0]:'Sem dados'} da receita total</div></div>
       <div class="kpi"><div class="kpi-label">Peso dos custos fixos</div><div class="kpi-value ${overhead>30?'warn':''}">${overhead}%</div><div class="kpi-delta">Custos fixos / receita do mês</div></div>
+      <div class="kpi"><div class="kpi-label">Previsão próximo mês</div><div class="kpi-value">${forecast!==null?forecast.toLocaleString('pt-PT')+'€':'—'}</div><div class="kpi-delta">Estimativa com base na tendência de receita</div></div>
     </div>
     <div class="grid-2">
       <div class="card">
@@ -1273,6 +1463,16 @@ function renderAnalise(){
       <div class="card">
         <div class="card-head"><div class="card-title">Despesas por categoria</div></div>
         ${catRanked.length ? catRanked.map(([cat,val])=>`<div class="deadline-row"><span class="deadline-name">${cat}</span><span class="progress-bar"><span class="progress-fill" style="width:${(val/catMax)*100}%;"></span></span><span class="deadline-date mono">${val}€</span></div>`).join('') : '<div class="empty-state">Sem despesas registadas ainda.</div>'}
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head"><div class="card-title">Clientes mais rentáveis</div><button class="card-link" onclick="goToView('gestaoclientes')">Ver tudo →</button></div>
+        ${bestClients.length ? bestClients.map(p=>`<div class="deadline-row"><span class="deadline-name">${p.client.name}</span><span class="deadline-date mono" style="color:var(--ok);">${p.margem.toLocaleString('pt-PT')}€</span></div>`).join('') : '<div class="empty-state">Sem dados de clientes ainda.</div>'}
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-title">Clientes menos rentáveis</div><button class="card-link" onclick="goToView('gestaoclientes')">Ver tudo →</button></div>
+        ${worstClients.length ? worstClients.map(p=>`<div class="deadline-row"><span class="deadline-name">${p.client.name}</span><span class="deadline-date mono" style="color:${p.margem>=0?'var(--ok)':'var(--danger)'};">${p.margem.toLocaleString('pt-PT')}€</span></div>`).join('') : '<div class="empty-state">Sem dados de clientes ainda.</div>'}
       </div>
     </div>
     <div class="grid-2">
@@ -1396,7 +1596,9 @@ function openModal(type, clientId){
     title.textContent = type==='despesa' ? 'Nova despesa' : type==='deposito' ? 'Novo depósito' : 'Novo movimento';
     body.innerHTML = `
       <div class="field"><label>Descrição</label><input id="f-desc" placeholder="${type==='deposito' ? 'Ex: Entrada de capital, transferência pessoal...' : 'Ex: Gestão de redes sociais'}"></div>
-      <div class="field"><label>Cliente</label><select id="f-client"><option>—</option>${CLIENT_NAMES().map(n=>`<option>${n}</option>`).join('')}</select></div>
+      <div class="field"><label>Cliente</label><select id="f-client"><option>—</option>${CLIENT_NAMES().map(n=>`<option>${n}</option>`).join('')}</select>
+        <div style="font-size:10.5px;color:var(--muted);margin-top:6px;">Associar um cliente permite acompanhar custos e faturação por cliente em "Gestão Clientes".</div>
+      </div>
       <div class="field" id="f-cat-wrap"><label>Categoria</label><input id="f-cat" placeholder="Ex: Serviço, Consultoria..."></div>
       <div class="field" id="f-date-wrap"><label>Data</label><input id="f-date" type="date" value="${todayIso()}"></div>
       <div class="field"><label>Tipo</label><select id="f-type">
@@ -1575,12 +1777,14 @@ function openModal(type, clientId){
       <div class="field"><label>NIF</label><input id="f-nif" placeholder="5xx xxx xxx"></div>
       <div class="field"><label>Email</label><input id="f-email" placeholder="geral@empresa.pt"></div>
       <div class="field"><label>Telefone</label><input id="f-phone" placeholder="+351 9xx xxx xxx"></div>
-      <div class="field"><label>Morada</label><input id="f-address" placeholder="Ex: Rua Exemplo, 123, Faro"></div>`;
+      <div class="field"><label>Morada</label><input id="f-address" placeholder="Ex: Rua Exemplo, 123, Faro"></div>
+      <div class="field"><label>Custo de aquisição (€)</label><input id="f-acq" type="number" placeholder="Ex: 150"></div>
+      <div style="font-size:10.5px;color:var(--muted);">Custo total (marketing, comissões, tempo comercial) para conquistar este cliente. Usado em "Gestão Clientes" para calcular a rentabilidade real.</div>`;
     submit.onclick = ()=>{
       const name=document.getElementById('f-name').value.trim();
       if(!name){ toast('Preenche o nome do cliente'); return; }
       const id=uid('c');
-      state.clients.unshift({id,name,segment:document.getElementById('f-seg').value||'',project:'',responsible:document.getElementById('f-resp').value||'',nif:document.getElementById('f-nif').value||'',email:document.getElementById('f-email').value||'',phone:document.getElementById('f-phone').value||'',address:document.getElementById('f-address').value||'',status:'Ativo',projects:[]});
+      state.clients.unshift({id,name,segment:document.getElementById('f-seg').value||'',project:'',responsible:document.getElementById('f-resp').value||'',nif:document.getElementById('f-nif').value||'',email:document.getElementById('f-email').value||'',phone:document.getElementById('f-phone').value||'',address:document.getElementById('f-address').value||'',acquisitionCost:parseFloat(document.getElementById('f-acq').value)||0,status:'Ativo',projects:[]});
       logActivity('Novo cliente: '+name);
       saveState(); closeModal(); goToView('clientes'); openClient(id); toast('Cliente adicionado');
     };
@@ -1598,6 +1802,7 @@ function openModal(type, clientId){
       <div class="field"><label>Email</label><input id="f-eemail" value="${c.email||''}"></div>
       <div class="field"><label>Telefone</label><input id="f-ephone" value="${c.phone||''}"></div>
       <div class="field"><label>Morada</label><input id="f-eaddress" value="${c.address||''}"></div>
+      <div class="field"><label>Custo de aquisição (€)</label><input id="f-eacq" type="number" value="${c.acquisitionCost||0}"></div>
       <div class="field"><label>Estado</label><select id="f-estatus">
         <option ${c.status==='Ativo'?'selected':''}>Ativo</option>
         <option ${c.status==='Pendente'?'selected':''}>Pendente</option>
@@ -1613,9 +1818,12 @@ function openModal(type, clientId){
       c.email = document.getElementById('f-eemail').value||'';
       c.phone = document.getElementById('f-ephone').value||'';
       c.address = document.getElementById('f-eaddress').value||'';
+      c.acquisitionCost = parseFloat(document.getElementById('f-eacq').value)||0;
       c.status = document.getElementById('f-estatus').value;
       logActivity('Ficha de '+name+' atualizada');
-      saveState(); closeModal(); openClient(c.id); toast('Informações do cliente guardadas');
+      saveState(); closeModal();
+      if(state.currentView==='gestaoclientes'){ renderGestaoClientes(); } else { openClient(c.id); }
+      toast('Informações do cliente guardadas');
     };
   }
 
@@ -1645,6 +1853,7 @@ function openModal(type, clientId){
     body.innerHTML = `
       <div class="field"><label>Ficheiro</label><input id="f-docfile" type="file"></div>
       <div class="field"><label>Nome do documento</label><input id="f-docname" placeholder="Ex: Contrato Cliente X"></div>
+      <div class="field"><label>Cliente associado</label><select id="f-docclient"><option value="">—</option>${state.clients.map(c=>`<option value="${c.id}" ${clientId===c.id?'selected':''}>${c.name}</option>`).join('')}</select></div>
       <div class="field"><label>Associar a</label><select id="f-doctag"><option ${clientId?'selected':''} value="Cliente">Cliente</option><option value="Projeto">Projeto</option><option value="Financeiro">Financeiro</option></select></div>
       <div id="f-docprogress" style="font-size:11px;color:var(--muted);"></div>`;
     const fileInput = ()=>document.getElementById('f-docfile');
@@ -1661,6 +1870,7 @@ function openModal(type, clientId){
     submit.onclick = async ()=>{
       const n=document.getElementById('f-docname').value.trim();
       const f = fileInput().files[0];
+      const selectedClientId = document.getElementById('f-docclient').value || null;
       if(!n){ toast('Preenche o nome do documento'); return; }
       if(!f){ toast('Escolhe um ficheiro para carregar'); return; }
       if(f.size > 4*1024*1024){ toast('Ficheiro demasiado grande (máx. ~4MB neste protótipo)'); return; }
@@ -1668,11 +1878,11 @@ function openModal(type, clientId){
       try{
         const dataUrl = await fileToDataUrl(f);
         const ext = (f.name.split('.').pop()||'').toUpperCase();
-        state.docs.unshift({id:uid('d'),name:n,tag:document.getElementById('f-doctag').value,type:ext||'FICHEIRO',size:formatBytes(f.size),data:dataUrl,thumb:dataUrl.startsWith('data:image')?dataUrl:null,clientId:clientId||null});
+        state.docs.unshift({id:uid('d'),name:n,tag:document.getElementById('f-doctag').value,type:ext||'FICHEIRO',size:formatBytes(f.size),data:dataUrl,thumb:dataUrl.startsWith('data:image')?dataUrl:null,clientId:selectedClientId});
         logActivity('Documento carregado: '+n);
         saveState();
         closeModal();
-        if(clientId){ openClient(clientId); } else { goToView('documentos'); }
+        if(clientId && state.currentView==='clientes'){ openClient(clientId); } else { goToView('gestaoclientes'); setGcTab('documentos'); }
         toast('Documento carregado');
       }catch(e){
         toast('Erro ao carregar o ficheiro');
@@ -1806,7 +2016,7 @@ function renderAll(){
   renderFinanceiro();
   renderClientes();
   renderTrabalho();
-  renderDocumentos();
+  renderGestaoClientes();
   renderAnalise();
   renderDefinicoes();
 }
