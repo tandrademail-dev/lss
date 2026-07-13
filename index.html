@@ -343,6 +343,7 @@ const NAV = [
   {v:'definicoes', label:'Definições', mlabel:'Config'}
 ];
 const EXPENSE_CATEGORIES = ['Custo com Pessoal','Material','Ferramentas / Software','Instalações','Marketing','Deslocações','Serviços Externos','Impostos','Outro'];
+const REVENUE_CATEGORIES = ['Serviço mensal','Manutenção','Suporte','Consultoria','Retainer','Outro'];
 const DOW = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const PRIO_COLOR = {'Alta':'var(--danger)','Média':'var(--warn)','Baixa':'var(--accent)'};
@@ -376,6 +377,7 @@ const DEFAULT_STATE = {
   notifications:[],
   events:[],
   fixedCosts:[],
+  recurringRevenues:[],
   settings:{dark:true,notifDeadlines:true,autoBackup:false,pin:false,systemNotif:false,company:{name:'Lente Viva',nif:'',logo:null}},
   sync:{generatedAt:0},
   activity:[]
@@ -550,10 +552,36 @@ function monthKey(){
   const n = new Date();
   return n.getFullYear()+'-'+n.getMonth();
 }
+function monthKeyValue(key){
+  const parts = String(key).split('-').map(Number);
+  return parts[0]*12 + parts[1];
+}
+function nextMonthKey(){
+  const n = new Date();
+  const d = new Date(n.getFullYear(), n.getMonth()+1, 1);
+  return d.getFullYear()+'-'+d.getMonth();
+}
+function daysInMonth(y,m){
+  return new Date(y, m+1, 0).getDate();
+}
+function isEligibleThisMonth(c){
+  return !c.startMonthKey || monthKeyValue(monthKey()) >= monthKeyValue(c.startMonthKey);
+}
+function firstEligibleDueDate(c){
+  if(!c.startMonthKey || isEligibleThisMonth(c)) return nextDueDateForDay(c.dueDay);
+  const [y,m] = c.startMonthKey.split('-').map(Number);
+  const day = Math.min(c.dueDay, daysInMonth(y,m));
+  return new Date(y, m, day).toISOString().slice(0,10);
+}
+function monthKeyLabel(key){
+  if(!key) return '';
+  const [y,m] = key.split('-').map(Number);
+  return MONTHS[m]+' de '+y;
+}
 function checkFixedCostAlerts(){
   let changed = false;
   state.fixedCosts.filter(c=>c.active).forEach(c=>{
-    const nextDate = nextDueDateForDay(c.dueDay);
+    const nextDate = firstEligibleDueDate(c);
     const dleft = daysUntil(nextDate);
     const notifId = 'fc-'+c.id+'-'+monthKey();
     const already = state.notifications.some(n=>n.id===notifId);
@@ -572,14 +600,51 @@ function checkFixedCostAlerts(){
   });
   if(changed) saveState();
 }
+function checkRecurringRevenueAlerts(){
+  let changed = false;
+  state.recurringRevenues.filter(c=>c.active).forEach(c=>{
+    const nextDate = firstEligibleDueDate(c);
+    const dleft = daysUntil(nextDate);
+    const notifId = 'mr-'+c.id+'-'+monthKey();
+    const already = state.notifications.some(n=>n.id===notifId);
+    if(dleft>=0 && dleft<=3 && !already){
+      const newNotif = {
+        id:notifId,
+        color: dleft===0 ? 'var(--accent)' : 'var(--ok)',
+        title: dleft===0 ? 'Mensalidade prevista para hoje' : 'Mensalidade em '+dleft+' dia(s)',
+        body: (c.client?c.client+' — ':'')+c.name+' — '+c.value+'€',
+        goto:'financeiro'
+      };
+      state.notifications.unshift(newNotif);
+      fireSystemNotification(newNotif);
+      changed = true;
+    }
+  });
+  if(changed) saveState();
+}
 function isFixedCostConfirmed(c){
   return !!(c.paidMonths && c.paidMonths[monthKey()]);
 }
 function fixedCostsCommittedTotal(){
-  return state.fixedCosts.filter(c=>c.active).reduce((s,c)=>s+c.value,0);
+  return state.fixedCosts.filter(c=>c.active && isEligibleThisMonth(c)).reduce((s,c)=>s+c.value,0);
 }
 function fixedCostsMonthlyTotal(){
-  return state.fixedCosts.filter(c=>c.active && isFixedCostConfirmed(c)).reduce((s,c)=>s+c.value,0);
+  return state.fixedCosts.filter(c=>c.active && isEligibleThisMonth(c) && isFixedCostConfirmed(c)).reduce((s,c)=>s+c.value,0);
+}
+function isRecurringRevenueConfirmed(c){
+  return !!(c.paidMonths && c.paidMonths[monthKey()]);
+}
+function recurringRevenueCommittedTotal(){
+  return state.recurringRevenues.filter(c=>c.active && isEligibleThisMonth(c)).reduce((s,c)=>s+c.value,0);
+}
+function recurringRevenueMonthlyTotal(){
+  return state.recurringRevenues.filter(c=>c.active && isEligibleThisMonth(c) && isRecurringRevenueConfirmed(c)).reduce((s,c)=>s+c.value,0);
+}
+function clientRecurringRevenueTotal(clientName){
+  return state.recurringRevenues.filter(c=>c.client===clientName).reduce((s,c)=>{
+    const confirmedMonths = Object.values(c.paidMonths||{}).filter(Boolean).length;
+    return s + (c.value * confirmedMonths);
+  }, 0);
 }
 
 /* ---------------- shared: upcoming items (tasks + events + custos fixos) ---------------- */
@@ -611,7 +676,7 @@ function formatShort(iso){
 
 /* ---------------- DASHBOARD ---------------- */
 function computeKpis(){
-  const receitasMes = state.movements.filter(isRealizedReceita).reduce((s,m)=>s+m.value,0);
+  const receitasMes = state.movements.filter(isRealizedReceita).reduce((s,m)=>s+m.value,0) + recurringRevenueMonthlyTotal();
   const depositosMes = state.movements.filter(m=>m.type==='deposito' && m.status!=='Cancelado').reduce((s,m)=>s+m.value,0);
   const despesasMes = state.movements.filter(m=>m.type==='despesa' && m.status!=='Cancelado').reduce((s,m)=>s+m.value,0) + fixedCostsMonthlyTotal();
   const saldo = receitasMes + depositosMes - despesasMes;
@@ -624,10 +689,15 @@ function renderDashboard(){
   const k = computeKpis();
   const upcoming = getUpcoming(5);
   document.getElementById('view-dashboard').innerHTML = `
+    <div class="kpi-grid" style="margin-bottom:10px;">
+      <div class="kpi"><div class="kpi-label">Custos fixos</div><div class="kpi-value warn">${fixedCostsMonthlyTotal().toLocaleString('pt-PT')}€ <span style="font-size:11px;color:var(--muted);font-weight:400;">saídos este mês</span></div><div class="kpi-delta">Comprometido no geral: ${fixedCostsCommittedTotal().toLocaleString('pt-PT')}€/mês · ${state.fixedCosts.filter(c=>c.active).length} ativo(s) · <button class="card-link" style="font-size:11px;" onclick="goToView('financeiro');setFinTab('custos')">gerir →</button></div></div>
+      <div class="kpi"><div class="kpi-label">Mensalidades fixas</div><div class="kpi-value pos">${recurringRevenueMonthlyTotal().toLocaleString('pt-PT')}€ <span style="font-size:11px;color:var(--muted);font-weight:400;">recebidas este mês</span></div><div class="kpi-delta">Esperado no geral: ${recurringRevenueCommittedTotal().toLocaleString('pt-PT')}€/mês · ${state.recurringRevenues.filter(c=>c.active).length} ativa(s) · <button class="card-link" style="font-size:11px;" onclick="goToView('financeiro');setFinTab('mensalidades')">gerir →</button></div></div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:18px 0 8px;">Este mês, até agora</div>
     <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-label">Receitas do mês</div><div class="kpi-value pos">${k.receitasMes.toLocaleString('pt-PT')}€</div><div class="kpi-delta">${state.movements.filter(isRealizedReceita).length} registo(s) faturável(eis) e pago(s) + mensalidades recebidas</div></div>
+      <div class="kpi"><div class="kpi-label">Custos do mês</div><div class="kpi-value">${k.despesasMes.toLocaleString('pt-PT')}€</div><div class="kpi-delta">${state.movements.filter(m=>m.type==='despesa'&&m.status!=='Cancelado').length} registo(s) + custos fixos saídos</div></div>
       <div class="kpi"><div class="kpi-label">Saldo atual</div><div class="kpi-value">${k.saldo.toLocaleString('pt-PT')}€</div><div class="kpi-delta">${k.depositosMes>0 ? 'Inclui '+k.depositosMes.toLocaleString('pt-PT')+'€ em depósitos' : 'Baseado nos movimentos registados'}</div></div>
-      <div class="kpi"><div class="kpi-label">Receitas do mês</div><div class="kpi-value pos">${k.receitasMes.toLocaleString('pt-PT')}€</div><div class="kpi-delta">${state.movements.filter(isRealizedReceita).length} registo(s) faturável(eis) e pago(s)</div></div>
-      <div class="kpi"><div class="kpi-label">Despesas do mês</div><div class="kpi-value">${k.despesasMes.toLocaleString('pt-PT')}€</div><div class="kpi-delta">${state.movements.filter(m=>m.type==='despesa'&&m.status!=='Cancelado').length} registo(s)</div></div>
       <div class="kpi"><div class="kpi-label">IVA estimado</div><div class="kpi-value warn">${k.iva}€</div><div class="kpi-delta">Sobre receitas faturáveis (23%)</div></div>
       <div class="kpi"><div class="kpi-label">Entradas pendentes</div><div class="kpi-value warn">${k.pendentesEntradaTotal.toLocaleString('pt-PT')}€</div><div class="kpi-delta">${k.pendentesEntradaCount>0 ? k.pendentesEntradaCount+' por confirmar · não conta para saldo nem faturação' : 'Sem entradas por confirmar'}</div></div>
     </div>
@@ -672,10 +742,12 @@ function renderMiniChart(){
     months.push({y:d.getFullYear(), m:d.getMonth(), label:MONTHS[d.getMonth()].slice(0,3)});
   }
   const totals = months.map(mo=>{
-    return state.movements.filter(mv=>{
+    const base = state.movements.filter(mv=>{
       const d = new Date(mv.date+'T00:00:00');
       return d.getFullYear()===mo.y && d.getMonth()===mo.m && isRealizedReceita(mv);
     }).reduce((s,mv)=>s+mv.value,0);
+    const isCurrent = mo.y===now.getFullYear() && mo.m===now.getMonth();
+    return isCurrent ? base + recurringRevenueMonthlyTotal() : base;
   });
   const max = Math.max(...totals, 1);
   return months.map((mo,i)=>`<div class="bar-col"><div class="bar" style="height:${Math.max(4,(totals[i]/max)*100)}%"></div><div class="bar-label">${mo.label}</div></div>`).join('');
@@ -687,18 +759,25 @@ function renderFinanceiro(){
   const tab = state.finTab;
   const totalPorCliente = {};
   state.movements.filter(isRealizedReceita).forEach(m=>{ totalPorCliente[m.client]=(totalPorCliente[m.client]||0)+m.value; });
+  state.clients.forEach(c=>{
+    const rec = clientRecurringRevenueTotal(c.name);
+    if(rec>0) totalPorCliente[c.name] = (totalPorCliente[c.name]||0) + rec;
+  });
   const ranking = Object.entries(totalPorCliente).sort((a,b)=>b[1]-a[1]);
 
   document.getElementById('view-financeiro').innerHTML = `
     <div class="toolbar">
       <div class="tabs">
         <button class="tab-btn ${tab==='registos'?'active':''}" onclick="setFinTab('registos')">Registos</button>
+        <button class="tab-btn ${tab==='mensalidades'?'active':''}" onclick="setFinTab('mensalidades')">Mensalidades</button>
         <button class="tab-btn ${tab==='custos'?'active':''}" onclick="setFinTab('custos')">Custos Fixos</button>
         <button class="tab-btn ${tab==='relatorios'?'active':''}" onclick="setFinTab('relatorios')">Relatórios</button>
       </div>
       <div>
         ${tab==='custos'
           ? `<button class="btn-primary" onclick="openModal('custofixo')">+ Novo custo fixo</button>`
+          : tab==='mensalidades'
+          ? `<button class="btn-primary" onclick="openModal('mensalidade')">+ Nova mensalidade</button>`
           : tab==='registos'
           ? `<input class="search-input" id="finSearch" placeholder="Pesquisar movimento..." oninput="renderFinTable()"><button class="btn-primary" onclick="openModal('movimento')">+ Novo movimento</button>`
           : ``}
@@ -707,11 +786,19 @@ function renderFinanceiro(){
     <div id="fin-registos" style="${tab==='registos'?'':'display:none'}">
       <div class="row-card"><table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Cliente</th><th>Tipo</th><th>Valor</th><th>Estado</th><th>Ações</th></tr></thead><tbody id="finTbody"></tbody></table></div>
     </div>
+    <div id="fin-mensalidades" style="${tab==='mensalidades'?'':'display:none'}">
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-head"><div class="card-title">Mensalidades confirmadas este mês</div></div>
+        <div class="kpi-value pos">${recurringRevenueMonthlyTotal().toLocaleString('pt-PT')}€ <span style="font-size:11px;color:var(--muted);font-weight:400;">confirmado(s) como já recebido(s)</span></div>
+        <div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5;">Total esperado (todas as mensalidades ativas e já iniciadas): ${recurringRevenueCommittedTotal().toLocaleString('pt-PT')}€/mês. Só o valor confirmado como "já recebido" entra no saldo, nas receitas e no IVA. Uma mensalidade só começa a contar a partir do mês seguinte ao da sua criação.</div>
+      </div>
+      <div class="row-card"><table><thead><tr><th>Cliente</th><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Dia de vencimento</th><th>Próximo vencimento</th><th>Recebido (mês atual)</th><th>Estado</th><th>Ações</th></tr></thead><tbody id="mensalidadesTbody"></tbody></table></div>
+    </div>
     <div id="fin-custos" style="${tab==='custos'?'':'display:none'}">
       <div class="card" style="margin-bottom:16px;">
         <div class="card-head"><div class="card-title">Custos fixos deste mês</div></div>
         <div class="kpi-value warn">${fixedCostsMonthlyTotal().toLocaleString('pt-PT')}€ <span style="font-size:11px;color:var(--muted);font-weight:400;">confirmado(s) como já saído da conta</span></div>
-        <div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5;">Total comprometido (todos os custos ativos): ${fixedCostsCommittedTotal().toLocaleString('pt-PT')}€/mês. Só o valor confirmado como "já saiu da conta" entra no saldo, nas despesas e na faturação.</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5;">Total comprometido (todos os custos ativos e já iniciados): ${fixedCostsCommittedTotal().toLocaleString('pt-PT')}€/mês. Só o valor confirmado como "já saiu da conta" entra no saldo, nas despesas e na faturação. Um custo fixo só começa a contar a partir do mês seguinte ao da sua criação.</div>
       </div>
       <div class="row-card"><table><thead><tr><th>Nome</th><th>Categoria</th><th>Associado a</th><th>Valor</th><th>Dia de pagamento</th><th>Próximo pagamento</th><th>Saiu da conta (mês atual)</th><th>Estado</th><th>Ações</th></tr></thead><tbody id="custosTbody"></tbody></table></div>
     </div>
@@ -728,6 +815,7 @@ function renderFinanceiro(){
       </div>
     </div>`;
   if(tab==='registos') renderFinTable();
+  if(tab==='mensalidades') renderMensalidadesTable();
   if(tab==='custos') renderCustosTable();
 }
 function renderCustosTable(){
@@ -735,9 +823,10 @@ function renderCustosTable(){
   if(!tbody) return;
   if(state.fixedCosts.length===0){ tbody.innerHTML = `<tr class="empty-row"><td colspan="9">Ainda sem custos fixos. Cria o primeiro com "+ Novo custo fixo".</td></tr>`; return; }
   tbody.innerHTML = state.fixedCosts.map(c=>{
-    const next = nextDueDateForDay(c.dueDay);
+    const next = firstEligibleDueDate(c);
     const dleft = daysUntil(next);
     const confirmed = isFixedCostConfirmed(c);
+    const eligible = isEligibleThisMonth(c);
     return `<tr>
       <td onclick="toggleCustoActive('${c.id}')"><strong>${c.name}</strong></td>
       <td onclick="toggleCustoActive('${c.id}')">${c.category||'—'}</td>
@@ -745,7 +834,9 @@ function renderCustosTable(){
       <td class="mono" onclick="toggleCustoActive('${c.id}')">${c.value}€</td>
       <td class="mono" onclick="toggleCustoActive('${c.id}')">dia ${c.dueDay}</td>
       <td onclick="toggleCustoActive('${c.id}')"><span class="pill ${dleft<=3?'overdue':'pending'}">${formatShort(next)}</span></td>
-      <td><span class="pill ${confirmed?'active':'pending'}" style="cursor:pointer;" onclick="toggleFixedCostConfirmed('${c.id}')">${confirmed?'Sim, já saiu':'Ainda não'}</span></td>
+      <td>${eligible
+        ? `<span class="pill ${confirmed?'active':'pending'}" style="cursor:pointer;" onclick="toggleFixedCostConfirmed('${c.id}')">${confirmed?'Sim, já saiu':'Ainda não'}</span>`
+        : `<span class="pill inactive" title="Começa em ${monthKeyLabel(c.startMonthKey)}">Ainda não iniciado</span>`}</td>
       <td onclick="toggleCustoActive('${c.id}')"><span class="pill ${c.active?'active':'inactive'}">${c.active?'Ativo':'Pausado'}</span></td>
       <td style="white-space:nowrap;">
         <button class="btn-ghost" style="padding:5px 10px;font-size:11px;" onclick="openModal('editar-custofixo','${c.id}')">Editar</button>
@@ -754,9 +845,36 @@ function renderCustosTable(){
     </tr>`;
   }).join('');
 }
+function renderMensalidadesTable(){
+  const tbody = document.getElementById('mensalidadesTbody');
+  if(!tbody) return;
+  if(state.recurringRevenues.length===0){ tbody.innerHTML = `<tr class="empty-row"><td colspan="9">Ainda sem mensalidades. Cria a primeira com "+ Nova mensalidade".</td></tr>`; return; }
+  tbody.innerHTML = state.recurringRevenues.map(c=>{
+    const next = firstEligibleDueDate(c);
+    const dleft = daysUntil(next);
+    const confirmed = isRecurringRevenueConfirmed(c);
+    const eligible = isEligibleThisMonth(c);
+    return `<tr>
+      <td onclick="toggleMensalidadeActive('${c.id}')">${c.client ? `<strong>${c.client}</strong>` : '<span style="color:var(--muted);">Sem cliente</span>'}</td>
+      <td onclick="toggleMensalidadeActive('${c.id}')">${c.name}</td>
+      <td onclick="toggleMensalidadeActive('${c.id}')">${c.category||'—'}</td>
+      <td class="mono" onclick="toggleMensalidadeActive('${c.id}')">${c.value}€</td>
+      <td class="mono" onclick="toggleMensalidadeActive('${c.id}')">dia ${c.dueDay}</td>
+      <td onclick="toggleMensalidadeActive('${c.id}')"><span class="pill ${dleft<=3?'overdue':'pending'}">${formatShort(next)}</span></td>
+      <td>${eligible
+        ? `<span class="pill ${confirmed?'active':'pending'}" style="cursor:pointer;" onclick="toggleMensalidadeConfirmed('${c.id}')">${confirmed?'Sim, já recebido':'Ainda não'}</span>`
+        : `<span class="pill inactive" title="Começa em ${monthKeyLabel(c.startMonthKey)}">Ainda não iniciado</span>`}</td>
+      <td onclick="toggleMensalidadeActive('${c.id}')"><span class="pill ${c.active?'active':'inactive'}">${c.active?'Ativa':'Pausada'}</span></td>
+      <td style="white-space:nowrap;">
+        <button class="btn-ghost" style="padding:5px 10px;font-size:11px;" onclick="openModal('editar-mensalidade','${c.id}')">Editar</button>
+        <button class="btn-ghost" style="padding:5px 10px;font-size:11px;color:var(--danger);" onclick="deleteMensalidade('${c.id}')">Apagar</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
 function toggleFixedCostConfirmed(id){
   const c = state.fixedCosts.find(x=>x.id===id);
-  if(!c) return;
+  if(!c || !isEligibleThisMonth(c)) return;
   if(!c.paidMonths) c.paidMonths = {};
   const key = monthKey();
   c.paidMonths[key] = !c.paidMonths[key];
@@ -764,6 +882,17 @@ function toggleFixedCostConfirmed(id){
   saveState();
   toast(c.paidMonths[key] ? 'Marcado como já saído da conta' : 'Marcado como ainda não saído');
   renderCustosTable(); refreshFinancialViews();
+}
+function toggleMensalidadeConfirmed(id){
+  const c = state.recurringRevenues.find(x=>x.id===id);
+  if(!c || !isEligibleThisMonth(c)) return;
+  if(!c.paidMonths) c.paidMonths = {};
+  const key = monthKey();
+  c.paidMonths[key] = !c.paidMonths[key];
+  logActivity((c.paidMonths[key]?'Confirmada mensalidade recebida: ':'Desmarcada mensalidade recebida: ')+c.name);
+  saveState();
+  toast(c.paidMonths[key] ? 'Marcado como já recebido' : 'Marcado como ainda não recebido');
+  renderMensalidadesTable(); refreshFinancialViews();
 }
 function toggleCustoActive(id){
   const c = state.fixedCosts.find(x=>x.id===id);
@@ -773,6 +902,15 @@ function toggleCustoActive(id){
   saveState();
   toast(c.active ? 'Custo fixo ativo' : 'Custo fixo pausado');
   renderCustosTable(); refreshFinancialViews();
+}
+function toggleMensalidadeActive(id){
+  const c = state.recurringRevenues.find(x=>x.id===id);
+  if(!c) return;
+  c.active = !c.active;
+  logActivity((c.active?'Reativada':'Pausada')+' mensalidade: '+c.name);
+  saveState();
+  toast(c.active ? 'Mensalidade ativa' : 'Mensalidade pausada');
+  renderMensalidadesTable(); refreshFinancialViews();
 }
 function deleteCusto(id){
   const c = state.fixedCosts.find(x=>x.id===id);
@@ -784,6 +922,17 @@ function deleteCusto(id){
   saveState();
   toast('Custo fixo apagado');
   renderCustosTable(); refreshFinancialViews();
+}
+function deleteMensalidade(id){
+  const c = state.recurringRevenues.find(x=>x.id===id);
+  if(!c) return;
+  if(!confirm('Apagar a mensalidade "'+c.name+'"?')) return;
+  state.recurringRevenues = state.recurringRevenues.filter(x=>x.id!==id);
+  state.notifications = state.notifications.filter(n=>!n.id.startsWith('mr-'+id+'-'));
+  logActivity('Mensalidade apagada: '+c.name);
+  saveState();
+  toast('Mensalidade apagada');
+  renderMensalidadesTable(); refreshFinancialViews();
 }
 function renderFinTable(){
   const q = (document.getElementById('finSearch')?.value || '').toLowerCase();
@@ -875,7 +1024,8 @@ function renderClientes(){
   if(state.openClientId) renderClientDetail(state.openClientId);
 }
 function billedTotal(clientName){
-  return state.movements.filter(m=>m.client===clientName && isRealizedReceita(m)).reduce((s,m)=>s+m.value,0);
+  const fromMovements = state.movements.filter(m=>m.client===clientName && isRealizedReceita(m)).reduce((s,m)=>s+m.value,0);
+  return fromMovements + clientRecurringRevenueTotal(clientName);
 }
 function renderClientTable(){
   const q = (document.getElementById('cliSearch')?.value || '').toLowerCase();
@@ -1307,8 +1457,9 @@ function computeMonthlySeries(n){
     const receita = state.movements.filter(mv=>{const dd=new Date(mv.date+'T00:00:00');return dd.getFullYear()===y&&dd.getMonth()===m&&isRealizedReceita(mv);}).reduce((s,mv)=>s+mv.value,0);
     let despesa = state.movements.filter(mv=>{const dd=new Date(mv.date+'T00:00:00');return dd.getFullYear()===y&&dd.getMonth()===m&&mv.type==='despesa'&&mv.status!=='Cancelado';}).reduce((s,mv)=>s+mv.value,0);
     const isCurrent = y===now.getFullYear() && m===now.getMonth();
-    if(isCurrent) despesa += fixedCostsMonthlyTotal();
-    arr.push({label:MONTHS[m].slice(0,3), y, m, receita, despesa, lucro:receita-despesa});
+    let receitaTotal = receita;
+    if(isCurrent){ despesa += fixedCostsMonthlyTotal(); receitaTotal += recurringRevenueMonthlyTotal(); }
+    arr.push({label:MONTHS[m].slice(0,3), y, m, receita:receitaTotal, despesa, lucro:receitaTotal-despesa});
   }
   return arr;
 }
@@ -2048,7 +2199,7 @@ function openModal(type, clientId){
       <div class="field"><label>Associar a</label><select id="f-cfclient"><option value="">Empresa (custo geral)</option>${CLIENT_NAMES().map(n=>`<option>${n}</option>`).join('')}</select></div>
       <div class="field"><label>Valor mensal (€)</label><input id="f-cfvalue" type="number" placeholder="0"></div>
       <div class="field"><label>Dia de pagamento (1–31)</label><input id="f-cfday" type="number" min="1" max="31" placeholder="Ex: 8"></div>
-      <div style="font-size:11px;color:var(--muted);">Vais receber um alerta 3 dias antes da data de pagamento, todos os meses. Se associares a um cliente, este custo passa a contar na rentabilidade desse cliente em Gestão Clientes.</div>`;
+      <div style="font-size:11px;color:var(--muted);">Vais receber um alerta 3 dias antes da data de pagamento, todos os meses. Este custo só passa a contar nas contas a partir do mês seguinte à criação. Se associares a um cliente, este custo passa a contar na rentabilidade desse cliente em Gestão Clientes.</div>`;
     document.getElementById('f-cfcat').addEventListener('change', ()=>{
       document.getElementById('f-cfcat-outro-wrap').style.display = document.getElementById('f-cfcat').value==='Outro' ? 'block' : 'none';
     });
@@ -2061,8 +2212,8 @@ function openModal(type, clientId){
       const client = document.getElementById('f-cfclient').value || '';
       if(!name||!value){ toast('Preenche o nome e o valor'); return; }
       if(!day||day<1||day>31){ toast('Indica um dia de pagamento válido (1–31)'); return; }
-      state.fixedCosts.unshift({id:uid('fc'),name,category:category||'Geral',client,value,dueDay:day,active:true,paidMonths:{}});
-      logActivity('Novo custo fixo: '+name+' ('+value+'€/mês, dia '+day+')'+(client?' — '+client:''));
+      state.fixedCosts.unshift({id:uid('fc'),name,category:category||'Geral',client,value,dueDay:day,active:true,paidMonths:{},startMonthKey:nextMonthKey()});
+      logActivity('Novo custo fixo: '+name+' ('+value+'€/mês, dia '+day+')'+(client?' — '+client:'')+' — começa em '+monthKeyLabel(nextMonthKey()));
       saveState();
       checkFixedCostAlerts();
       closeModal(); goToView('financeiro'); setFinTab('custos'); toast('Custo fixo adicionado');
@@ -2105,6 +2256,73 @@ function openModal(type, clientId){
       closeModal(); goToView('financeiro'); setFinTab('custos'); toast('Custo fixo atualizado');
     };
   }
+  if(type==='mensalidade'){
+    title.textContent = 'Nova mensalidade';
+    body.innerHTML = `
+      <div class="field"><label>Cliente</label><select id="f-mrclient"><option value="">Sem cliente associado</option>${CLIENT_NAMES().map(n=>`<option>${n}</option>`).join('')}</select></div>
+      <div class="field"><label>Descrição</label><input id="f-mrname" placeholder="Ex: Manutenção mensal do site"></div>
+      <div class="field"><label>Categoria</label><select id="f-mrcat">${REVENUE_CATEGORIES.map(c=>`<option>${c}</option>`).join('')}</select>
+        <div id="f-mrcat-outro-wrap" style="display:none;margin-top:8px;"><input id="f-mrcat-outro" placeholder="Especifica a categoria"></div>
+      </div>
+      <div class="field"><label>Valor mensal (€)</label><input id="f-mrvalue" type="number" placeholder="0"></div>
+      <div class="field"><label>Dia de vencimento (1–31)</label><input id="f-mrday" type="number" min="1" max="31" placeholder="Ex: 8"></div>
+      <div style="font-size:11px;color:var(--muted);">Vais receber um alerta 3 dias antes da data de vencimento, todos os meses. Esta mensalidade só passa a contar nas receitas e no IVA a partir do mês seguinte à criação, e só depois de confirmares "já recebido" em cada mês.</div>`;
+    document.getElementById('f-mrcat').addEventListener('change', ()=>{
+      document.getElementById('f-mrcat-outro-wrap').style.display = document.getElementById('f-mrcat').value==='Outro' ? 'block' : 'none';
+    });
+    submit.onclick = ()=>{
+      const name=document.getElementById('f-mrname').value.trim();
+      const value=parseFloat(document.getElementById('f-mrvalue').value);
+      const day=parseInt(document.getElementById('f-mrday').value,10);
+      const catSel = document.getElementById('f-mrcat').value;
+      const category = catSel==='Outro' ? (document.getElementById('f-mrcat-outro').value.trim()||'Outro') : catSel;
+      const client = document.getElementById('f-mrclient').value || '';
+      if(!name||!value){ toast('Preenche a descrição e o valor'); return; }
+      if(!day||day<1||day>31){ toast('Indica um dia de vencimento válido (1–31)'); return; }
+      state.recurringRevenues.unshift({id:uid('mr'),name,category:category||'Geral',client,value,dueDay:day,active:true,paidMonths:{},startMonthKey:nextMonthKey()});
+      logActivity('Nova mensalidade: '+name+' ('+value+'€/mês, dia '+day+')'+(client?' — '+client:'')+' — começa em '+monthKeyLabel(nextMonthKey()));
+      saveState();
+      checkRecurringRevenueAlerts();
+      closeModal(); goToView('financeiro'); setFinTab('mensalidades'); toast('Mensalidade adicionada');
+    };
+  }
+
+  if(type==='editar-mensalidade'){
+    const c = state.recurringRevenues.find(x=>x.id===clientId);
+    if(!c){ closeModal(); return; }
+    title.textContent = 'Editar mensalidade';
+    body.innerHTML = `
+      <div class="field"><label>Cliente</label><select id="f-emrclient"><option value="" ${!c.client?'selected':''}>Sem cliente associado</option>${CLIENT_NAMES().map(n=>`<option ${c.client===n?'selected':''}>${n}</option>`).join('')}</select></div>
+      <div class="field"><label>Descrição</label><input id="f-emrname" value="${c.name||''}"></div>
+      <div class="field"><label>Categoria</label><select id="f-emrcat">${REVENUE_CATEGORIES.map(cat=>`<option ${cat===c.category?'selected':''}>${cat}</option>`).join('')}</select>
+        <div id="f-emrcat-outro-wrap" style="margin-top:8px;${REVENUE_CATEGORIES.includes(c.category)?'display:none;':''}"><input id="f-emrcat-outro" placeholder="Especifica a categoria" value="${REVENUE_CATEGORIES.includes(c.category)?'':(c.category||'')}"></div>
+      </div>
+      <div class="field"><label>Valor mensal (€)</label><input id="f-emrvalue" type="number" value="${c.value}"></div>
+      <div class="field"><label>Dia de vencimento (1–31)</label><input id="f-emrday" type="number" min="1" max="31" value="${c.dueDay}"></div>
+      <div class="field"><label>Estado</label><select id="f-emractive">
+        <option value="1" ${c.active?'selected':''}>Ativa</option>
+        <option value="0" ${!c.active?'selected':''}>Pausada</option>
+      </select></div>`;
+    document.getElementById('f-emrcat').addEventListener('change', ()=>{
+      document.getElementById('f-emrcat-outro-wrap').style.display = document.getElementById('f-emrcat').value==='Outro' ? 'block' : 'none';
+    });
+    submit.onclick = ()=>{
+      const name=document.getElementById('f-emrname').value.trim();
+      const value=parseFloat(document.getElementById('f-emrvalue').value);
+      const day=parseInt(document.getElementById('f-emrday').value,10);
+      const catSel = document.getElementById('f-emrcat').value;
+      const category = catSel==='Outro' ? (document.getElementById('f-emrcat-outro').value.trim()||'Outro') : catSel;
+      const client = document.getElementById('f-emrclient').value || '';
+      if(!name||!value){ toast('Preenche a descrição e o valor'); return; }
+      if(!day||day<1||day>31){ toast('Indica um dia de vencimento válido (1–31)'); return; }
+      c.name = name; c.category = category||'Geral'; c.client = client; c.value = value; c.dueDay = day;
+      c.active = document.getElementById('f-emractive').value==='1';
+      logActivity('Mensalidade editada: '+name);
+      saveState();
+      checkRecurringRevenueAlerts();
+      closeModal(); goToView('financeiro'); setFinTab('mensalidades'); toast('Mensalidade atualizada');
+    };
+  }
 }
 function closeModal(){ document.getElementById('modalOverlay').classList.remove('open'); }
 document.getElementById('modalOverlay').addEventListener('click',(e)=>{ if(e.target.id==='modalOverlay') closeModal(); });
@@ -2133,6 +2351,7 @@ function renderAll(){
   renderDefinicoes();
 }
 checkFixedCostAlerts();
+checkRecurringRevenueAlerts();
 goToView(state.currentView);
 </script>
 </body>
