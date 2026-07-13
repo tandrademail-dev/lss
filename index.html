@@ -690,8 +690,8 @@ function renderDashboard(){
   const upcoming = getUpcoming(5);
   document.getElementById('view-dashboard').innerHTML = `
     <div class="kpi-grid" style="margin-bottom:10px;">
-      <div class="kpi"><div class="kpi-label">Custos fixos</div><div class="kpi-value warn">${fixedCostsMonthlyTotal().toLocaleString('pt-PT')}€ <span style="font-size:11px;color:var(--muted);font-weight:400;">saídos este mês</span></div><div class="kpi-delta">Comprometido no geral: ${fixedCostsCommittedTotal().toLocaleString('pt-PT')}€/mês · ${state.fixedCosts.filter(c=>c.active).length} ativo(s) · <button class="card-link" style="font-size:11px;" onclick="goToView('financeiro');setFinTab('custos')">gerir →</button></div></div>
-      <div class="kpi"><div class="kpi-label">Mensalidades fixas</div><div class="kpi-value pos">${recurringRevenueMonthlyTotal().toLocaleString('pt-PT')}€ <span style="font-size:11px;color:var(--muted);font-weight:400;">recebidas este mês</span></div><div class="kpi-delta">Esperado no geral: ${recurringRevenueCommittedTotal().toLocaleString('pt-PT')}€/mês · ${state.recurringRevenues.filter(c=>c.active).length} ativa(s) · <button class="card-link" style="font-size:11px;" onclick="goToView('financeiro');setFinTab('mensalidades')">gerir →</button></div></div>
+      <div class="kpi"><div class="kpi-label">Custos fixos</div><div class="kpi-value warn">${fixedCostsCommittedTotal().toLocaleString('pt-PT')}€ <span style="font-size:11px;color:var(--muted);font-weight:400;">esperados este mês</span></div><div class="kpi-delta">${fixedCostsMonthlyTotal().toLocaleString('pt-PT')}€ já confirmados como saídos · ${state.fixedCosts.filter(c=>c.active).length} ativo(s) · <button class="card-link" style="font-size:11px;" onclick="goToView('financeiro');setFinTab('custos')">gerir →</button></div></div>
+      <div class="kpi"><div class="kpi-label">Mensalidades fixas</div><div class="kpi-value pos">${recurringRevenueCommittedTotal().toLocaleString('pt-PT')}€ <span style="font-size:11px;color:var(--muted);font-weight:400;">esperadas este mês</span></div><div class="kpi-delta">${recurringRevenueMonthlyTotal().toLocaleString('pt-PT')}€ já confirmados como recebidos · ${state.recurringRevenues.filter(c=>c.active).length} ativa(s) · <button class="card-link" style="font-size:11px;" onclick="goToView('financeiro');setFinTab('mensalidades')">gerir →</button></div></div>
     </div>
     <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:18px 0 8px;">Este mês, até agora</div>
     <div class="kpi-grid">
@@ -835,8 +835,8 @@ function renderCustosTable(){
       <td class="mono" onclick="toggleCustoActive('${c.id}')">dia ${c.dueDay}</td>
       <td onclick="toggleCustoActive('${c.id}')"><span class="pill ${dleft<=3?'overdue':'pending'}">${formatShort(next)}</span></td>
       <td>${eligible
-        ? `<span class="pill ${confirmed?'active':'pending'}" style="cursor:pointer;" onclick="toggleFixedCostConfirmed('${c.id}')">${confirmed?'Sim, já saiu':'Ainda não'}</span>`
-        : `<span class="pill inactive" title="Começa em ${monthKeyLabel(c.startMonthKey)}">Ainda não iniciado</span>`}</td>
+        ? `<span class="pill ${confirmed?'active':'pending'}" style="cursor:pointer;" onclick="toggleFixedCostConfirmed('${c.id}')">${confirmed?'Sim, já saiu':'Ainda não'}</span><div style="font-size:9.5px;color:var(--muted);margin-top:4px;">${confirmed ? 'Confirmado '+monthKeyLabel(monthKey())+' · próximo: '+monthKeyLabel(nextMonthKey()) : 'A confirmar em '+monthKeyLabel(monthKey())}</div>`
+        : `<span class="pill inactive" title="Começa em ${monthKeyLabel(c.startMonthKey)}">Ainda não iniciado</span><div style="font-size:9.5px;color:var(--muted);margin-top:4px;">Começa a contar em ${monthKeyLabel(c.startMonthKey)}</div>`}</td>
       <td onclick="toggleCustoActive('${c.id}')"><span class="pill ${c.active?'active':'inactive'}">${c.active?'Ativo':'Pausado'}</span></td>
       <td style="white-space:nowrap;">
         <button class="btn-ghost" style="padding:5px 10px;font-size:11px;" onclick="openModal('editar-custofixo','${c.id}')">Editar</button>
@@ -862,8 +862,8 @@ function renderMensalidadesTable(){
       <td class="mono" onclick="toggleMensalidadeActive('${c.id}')">dia ${c.dueDay}</td>
       <td onclick="toggleMensalidadeActive('${c.id}')"><span class="pill ${dleft<=3?'overdue':'pending'}">${formatShort(next)}</span></td>
       <td>${eligible
-        ? `<span class="pill ${confirmed?'active':'pending'}" style="cursor:pointer;" onclick="toggleMensalidadeConfirmed('${c.id}')">${confirmed?'Sim, já recebido':'Ainda não'}</span>`
-        : `<span class="pill inactive" title="Começa em ${monthKeyLabel(c.startMonthKey)}">Ainda não iniciado</span>`}</td>
+        ? `<span class="pill ${confirmed?'active':'pending'}" style="cursor:pointer;" onclick="toggleMensalidadeConfirmed('${c.id}')">${confirmed?'Sim, já recebido':'Ainda não'}</span><div style="font-size:9.5px;color:var(--muted);margin-top:4px;">${confirmed ? 'Confirmado '+monthKeyLabel(monthKey())+' · próximo: '+monthKeyLabel(nextMonthKey()) : 'A confirmar em '+monthKeyLabel(monthKey())}</div>`
+        : `<span class="pill inactive" title="Começa em ${monthKeyLabel(c.startMonthKey)}">Ainda não iniciado</span><div style="font-size:9.5px;color:var(--muted);margin-top:4px;">Começa a contar em ${monthKeyLabel(c.startMonthKey)}</div>`}</td>
       <td onclick="toggleMensalidadeActive('${c.id}')"><span class="pill ${c.active?'active':'inactive'}">${c.active?'Ativa':'Pausada'}</span></td>
       <td style="white-space:nowrap;">
         <button class="btn-ghost" style="padding:5px 10px;font-size:11px;" onclick="openModal('editar-mensalidade','${c.id}')">Editar</button>
