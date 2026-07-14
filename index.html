@@ -407,7 +407,9 @@ function saveState(){
   }
 }
 function uid(prefix){ return prefix + Math.random().toString(36).slice(2,9); }
-function todayIso(){ return new Date().toISOString().slice(0,10); }
+function pad2(n){ return String(n).padStart(2,'0'); }
+function toLocalIso(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+function todayIso(){ return toLocalIso(new Date()); }
 function logActivity(text){
   state.activity.unshift({time: nowLabel(), text});
   state.activity = state.activity.slice(0,12);
@@ -541,7 +543,7 @@ function nextDueDateForDay(day){
     const clampedNext = Math.min(day, lastDayNext);
     candidate = new Date(y, m+1, clampedNext);
   }
-  return candidate.toISOString().slice(0,10);
+  return toLocalIso(candidate);
 }
 function daysUntil(iso){
   const now = new Date(); now.setHours(0,0,0,0);
@@ -577,7 +579,7 @@ function firstEligibleDueDate(c){
   if(!c.startMonthKey || isEligibleThisMonth(c)) return nextDueDateForDay(c.dueDay);
   const [y,m] = c.startMonthKey.split('-').map(Number);
   const day = Math.min(c.dueDay, daysInMonth(y,m));
-  return new Date(y, m, day).toISOString().slice(0,10);
+  return toLocalIso(new Date(y, m, day));
 }
 function monthKeyLabel(key){
   if(!key) return '';
@@ -663,7 +665,10 @@ function getUpcoming(limit){
     items.push({date:ev.date, name:ev.title, color:EVENT_TYPES[ev.type]?.color||'var(--muted)', goto:'trabalho'});
   });
   state.fixedCosts.filter(c=>c.active).forEach(c=>{
-    items.push({date:nextDueDateForDay(c.dueDay), name:c.name+' (custo fixo)', color:'var(--warn)', goto:'financeiro'});
+    items.push({date:firstEligibleDueDate(c), name:c.name+' (custo fixo)', color:'var(--warn)', goto:'financeiro'});
+  });
+  state.recurringRevenues.filter(c=>c.active).forEach(c=>{
+    items.push({date:firstEligibleDueDate(c), name:c.name+' (mensalidade)', color:'var(--ok)', goto:'financeiro'});
   });
   items.sort((a,b)=> (a.date||'9999').localeCompare(b.date||'9999'));
   return items.slice(0, limit||6);
