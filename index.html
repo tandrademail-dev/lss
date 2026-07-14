@@ -564,6 +564,12 @@ function nextMonthKey(){
 function daysInMonth(y,m){
   return new Date(y, m+1, 0).getDate();
 }
+function computeStartMonthKey(dueDay){
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  const clampedDue = Math.min(dueDay, daysInMonth(y,m));
+  return now.getDate() <= clampedDue ? monthKey() : nextMonthKey();
+}
 function isEligibleThisMonth(c){
   return !c.startMonthKey || monthKeyValue(monthKey()) >= monthKeyValue(c.startMonthKey);
 }
@@ -790,7 +796,7 @@ function renderFinanceiro(){
       <div class="card" style="margin-bottom:16px;">
         <div class="card-head"><div class="card-title">Mensalidades confirmadas este mês</div></div>
         <div class="kpi-value pos">${recurringRevenueMonthlyTotal().toLocaleString('pt-PT')}€ <span style="font-size:11px;color:var(--muted);font-weight:400;">confirmado(s) como já recebido(s)</span></div>
-        <div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5;">Total esperado (todas as mensalidades ativas e já iniciadas): ${recurringRevenueCommittedTotal().toLocaleString('pt-PT')}€/mês. Só o valor confirmado como "já recebido" entra no saldo, nas receitas e no IVA. Uma mensalidade só começa a contar a partir do mês seguinte ao da sua criação.</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5;">Total esperado (todas as mensalidades ativas e já iniciadas): ${recurringRevenueCommittedTotal().toLocaleString('pt-PT')}€/mês. Só o valor confirmado como "já recebido" entra no saldo, nas receitas e no IVA.</div>
       </div>
       <div class="row-card"><table><thead><tr><th>Cliente</th><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Dia de vencimento</th><th>Próximo vencimento</th><th>Recebido (mês atual)</th><th>Estado</th><th>Ações</th></tr></thead><tbody id="mensalidadesTbody"></tbody></table></div>
     </div>
@@ -798,7 +804,7 @@ function renderFinanceiro(){
       <div class="card" style="margin-bottom:16px;">
         <div class="card-head"><div class="card-title">Custos fixos deste mês</div></div>
         <div class="kpi-value warn">${fixedCostsMonthlyTotal().toLocaleString('pt-PT')}€ <span style="font-size:11px;color:var(--muted);font-weight:400;">confirmado(s) como já saído da conta</span></div>
-        <div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5;">Total comprometido (todos os custos ativos e já iniciados): ${fixedCostsCommittedTotal().toLocaleString('pt-PT')}€/mês. Só o valor confirmado como "já saiu da conta" entra no saldo, nas despesas e na faturação. Um custo fixo só começa a contar a partir do mês seguinte ao da sua criação.</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5;">Total comprometido (todos os custos ativos e já iniciados): ${fixedCostsCommittedTotal().toLocaleString('pt-PT')}€/mês. Só o valor confirmado como "já saiu da conta" entra no saldo, nas despesas e na faturação.</div>
       </div>
       <div class="row-card"><table><thead><tr><th>Nome</th><th>Categoria</th><th>Associado a</th><th>Valor</th><th>Dia de pagamento</th><th>Próximo pagamento</th><th>Saiu da conta (mês atual)</th><th>Estado</th><th>Ações</th></tr></thead><tbody id="custosTbody"></tbody></table></div>
     </div>
@@ -1923,7 +1929,7 @@ function openModal(type, clientId){
       if(isRecurring){
         const day=parseInt(document.getElementById('f-recurday').value,10);
         if(!day||day<1||day>31){ toast('Indica um dia de pagamento válido (1–31)'); return; }
-        state.fixedCosts.unshift({id:uid('fc'),name:desc,category:getCategoryValue()||'Geral',value,dueDay:day,active:true,paidMonths:{}});
+        state.fixedCosts.unshift({id:uid('fc'),name:desc,category:getCategoryValue()||'Geral',value,dueDay:day,active:true,paidMonths:{},startMonthKey:computeStartMonthKey(day)});
         logActivity('Novo custo fixo: '+desc+' ('+value+'€/mês, dia '+day+')');
         saveState();
         checkFixedCostAlerts();
@@ -2199,7 +2205,7 @@ function openModal(type, clientId){
       <div class="field"><label>Associar a</label><select id="f-cfclient"><option value="">Empresa (custo geral)</option>${CLIENT_NAMES().map(n=>`<option>${n}</option>`).join('')}</select></div>
       <div class="field"><label>Valor mensal (€)</label><input id="f-cfvalue" type="number" placeholder="0"></div>
       <div class="field"><label>Dia de pagamento (1–31)</label><input id="f-cfday" type="number" min="1" max="31" placeholder="Ex: 8"></div>
-      <div style="font-size:11px;color:var(--muted);">Vais receber um alerta 3 dias antes da data de pagamento, todos os meses. Este custo só passa a contar nas contas a partir do mês seguinte à criação. Se associares a um cliente, este custo passa a contar na rentabilidade desse cliente em Gestão Clientes.</div>`;
+      <div style="font-size:11px;color:var(--muted);">Vais receber um alerta 3 dias antes da data de pagamento, todos os meses. Se o dia de pagamento ainda não passou este mês, este custo já conta a partir deste mês; se já tiver passado, só começa a contar no mês seguinte. Se associares a um cliente, este custo passa a contar na rentabilidade desse cliente em Gestão Clientes.</div>`;
     document.getElementById('f-cfcat').addEventListener('change', ()=>{
       document.getElementById('f-cfcat-outro-wrap').style.display = document.getElementById('f-cfcat').value==='Outro' ? 'block' : 'none';
     });
@@ -2212,8 +2218,9 @@ function openModal(type, clientId){
       const client = document.getElementById('f-cfclient').value || '';
       if(!name||!value){ toast('Preenche o nome e o valor'); return; }
       if(!day||day<1||day>31){ toast('Indica um dia de pagamento válido (1–31)'); return; }
-      state.fixedCosts.unshift({id:uid('fc'),name,category:category||'Geral',client,value,dueDay:day,active:true,paidMonths:{},startMonthKey:nextMonthKey()});
-      logActivity('Novo custo fixo: '+name+' ('+value+'€/mês, dia '+day+')'+(client?' — '+client:'')+' — começa em '+monthKeyLabel(nextMonthKey()));
+      const startKey = computeStartMonthKey(day);
+      state.fixedCosts.unshift({id:uid('fc'),name,category:category||'Geral',client,value,dueDay:day,active:true,paidMonths:{},startMonthKey:startKey});
+      logActivity('Novo custo fixo: '+name+' ('+value+'€/mês, dia '+day+')'+(client?' — '+client:'')+' — começa em '+monthKeyLabel(startKey));
       saveState();
       checkFixedCostAlerts();
       closeModal(); goToView('financeiro'); setFinTab('custos'); toast('Custo fixo adicionado');
@@ -2266,7 +2273,7 @@ function openModal(type, clientId){
       </div>
       <div class="field"><label>Valor mensal (€)</label><input id="f-mrvalue" type="number" placeholder="0"></div>
       <div class="field"><label>Dia de vencimento (1–31)</label><input id="f-mrday" type="number" min="1" max="31" placeholder="Ex: 8"></div>
-      <div style="font-size:11px;color:var(--muted);">Vais receber um alerta 3 dias antes da data de vencimento, todos os meses. Esta mensalidade só passa a contar nas receitas e no IVA a partir do mês seguinte à criação, e só depois de confirmares "já recebido" em cada mês.</div>`;
+      <div style="font-size:11px;color:var(--muted);">Vais receber um alerta 3 dias antes da data de vencimento, todos os meses. Se o dia de vencimento ainda não passou este mês, esta mensalidade já conta a partir deste mês; se já tiver passado, só começa a contar no mês seguinte. Precisas de confirmar "já recebido" em cada mês elegível.</div>`;
     document.getElementById('f-mrcat').addEventListener('change', ()=>{
       document.getElementById('f-mrcat-outro-wrap').style.display = document.getElementById('f-mrcat').value==='Outro' ? 'block' : 'none';
     });
@@ -2279,8 +2286,9 @@ function openModal(type, clientId){
       const client = document.getElementById('f-mrclient').value || '';
       if(!name||!value){ toast('Preenche a descrição e o valor'); return; }
       if(!day||day<1||day>31){ toast('Indica um dia de vencimento válido (1–31)'); return; }
-      state.recurringRevenues.unshift({id:uid('mr'),name,category:category||'Geral',client,value,dueDay:day,active:true,paidMonths:{},startMonthKey:nextMonthKey()});
-      logActivity('Nova mensalidade: '+name+' ('+value+'€/mês, dia '+day+')'+(client?' — '+client:'')+' — começa em '+monthKeyLabel(nextMonthKey()));
+      const startKey = computeStartMonthKey(day);
+      state.recurringRevenues.unshift({id:uid('mr'),name,category:category||'Geral',client,value,dueDay:day,active:true,paidMonths:{},startMonthKey:startKey});
+      logActivity('Nova mensalidade: '+name+' ('+value+'€/mês, dia '+day+')'+(client?' — '+client:'')+' — começa em '+monthKeyLabel(startKey));
       saveState();
       checkRecurringRevenueAlerts();
       closeModal(); goToView('financeiro'); setFinTab('mensalidades'); toast('Mensalidade adicionada');
