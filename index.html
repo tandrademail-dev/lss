@@ -440,10 +440,16 @@ function formatBytes(bytes){
 // Despesas só entram no acumulado (como dedução) se o utilizador marcar a opção "conta para o IVA", e contam
 // enquanto não estiverem "Cancelado" (mesmo regime que já era usado para contar despesas do mês).
 // O acumulado NÃO é recalculado do zero a cada render — é alterado só por estas ações, para o botão "Zerar valor" fazer sentido.
+// Se ivaIncluido=true, o valor já inclui IVA e extraímos a parte do IVA (valor - valor/1.23).
+// Se ivaIncluido=false (ou não definido, para compatibilidade com registos antigos), o valor é sem IVA e acrescentamos 23%.
+function ivaAmountFor(value, ivaIncluido){
+  return ivaIncluido ? value * (IVA_RATE/(1+IVA_RATE)) : value * IVA_RATE;
+}
 function ivaEffectFor(m){
   if(!m || m.status==='Cancelado' || !m.temIva) return 0;
-  if(m.type==='receita') return m.status==='Pago' ? +(m.value*IVA_RATE) : 0;
-  if(m.type==='despesa') return -(m.value*IVA_RATE);
+  const ivaVal = ivaAmountFor(m.value, m.ivaIncluido);
+  if(m.type==='receita') return m.status==='Pago' ? +ivaVal : 0;
+  if(m.type==='despesa') return -ivaVal;
   return 0; // depósitos nunca têm efeito de IVA
 }
 function applyIvaDelta(before, after){
@@ -1944,8 +1950,15 @@ function openModal(type, clientId){
       <div class="field" id="f-iva-despesa-wrap" style="display:none;">
         <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:12.5px;color:var(--text);">
           <input type="checkbox" id="f-temiva" style="width:auto;">
-          Conta para o IVA (dedutível — subtrai ${Math.round(IVA_RATE*100)}% do valor à caixinha do IVA)
+          Conta para o IVA (dedutível — subtrai o IVA do valor à caixinha do IVA)
         </label>
+      </div>
+      <div class="field" id="f-ivaincluido-wrap" style="display:none;">
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:12.5px;color:var(--text);">
+          <input type="checkbox" id="f-ivaincluido" style="width:auto;">
+          IVA incluído (o valor acima já inclui IVA — se desmarcado, o IVA é acrescentado ao valor)
+        </label>
+        <div id="f-iva-preview" style="font-size:10.5px;color:var(--muted);margin-top:6px;"></div>
       </div>
       <div class="field" id="f-recurring-wrap" style="display:none;">
         <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:12.5px;color:var(--text);">
@@ -1964,7 +1977,20 @@ function openModal(type, clientId){
     const depositoNote = ()=>document.getElementById('f-deposito-note');
     const ivaReceitaNote = ()=>document.getElementById('f-iva-receita-note');
     const ivaDespesaWrap = ()=>document.getElementById('f-iva-despesa-wrap');
+    const ivaIncluidoWrap = ()=>document.getElementById('f-ivaincluido-wrap');
+    const ivaIncluidoCheck = ()=>document.getElementById('f-ivaincluido');
     const catWrap = ()=>document.getElementById('f-cat-wrap');
+    function updateIvaPreview(){
+      const preview = document.getElementById('f-iva-preview');
+      if(!preview) return;
+      const val = parseFloat(document.getElementById('f-value')?.value);
+      if(!val || val<=0){ preview.textContent=''; return; }
+      const incluido = ivaIncluidoCheck()?.checked;
+      const iva = ivaAmountFor(val, incluido);
+      preview.textContent = incluido
+        ? 'IVA incluído no valor: '+iva.toFixed(2)+'€ (valor sem IVA: '+(val-iva).toFixed(2)+'€)'
+        : 'IVA a acrescentar: '+iva.toFixed(2)+'€ (total com IVA: '+(val+iva).toFixed(2)+'€)';
+    }
     function renderCatField(){
       const wrap = catWrap();
       if(!wrap) return;
@@ -1998,14 +2024,20 @@ function openModal(type, clientId){
       dN.style.display = tS.value==='deposito' ? 'block' : 'none';
       ivaReceitaNote().style.display = tS.value==='receita' ? 'block' : 'none';
       ivaDespesaWrap().style.display = tS.value==='despesa' ? 'block' : 'none';
+      const hasIvaOption = tS.value==='receita' || (tS.value==='despesa' && document.getElementById('f-temiva')?.checked);
+      ivaIncluidoWrap().style.display = hasIvaOption ? 'block' : 'none';
       const isRecurring = tS.value==='despesa' && rC.checked;
       rdW.style.display = isRecurring ? 'block' : 'none';
       dW.style.display = isRecurring ? 'none' : 'block';
       renderCatField();
+      updateIvaPreview();
     }
     syncRecurringUI();
     typeSelect().addEventListener('change', syncRecurringUI);
     recurCheck().addEventListener('change', syncRecurringUI);
+    document.getElementById('f-temiva').addEventListener('change', syncRecurringUI);
+    document.getElementById('f-value').addEventListener('input', updateIvaPreview);
+    ivaIncluidoCheck().addEventListener('change', updateIvaPreview);
     submit.onclick = ()=>{
       const desc=document.getElementById('f-desc').value.trim();
       const value=parseFloat(document.getElementById('f-value').value);
@@ -2023,7 +2055,8 @@ function openModal(type, clientId){
       }
       const selType = typeSelect().value;
       const temIva = selType==='receita' ? true : (selType==='despesa' ? document.getElementById('f-temiva').checked : false);
-      const novo = {id:uid('m'),date:document.getElementById('f-date').value||todayIso(),desc,cat:getCategoryValue()||'Geral',client:document.getElementById('f-client').value,type:selType,value,status:'Pendente',temIva};
+      const ivaIncluido = temIva ? !!ivaIncluidoCheck()?.checked : false;
+      const novo = {id:uid('m'),date:document.getElementById('f-date').value||todayIso(),desc,cat:getCategoryValue()||'Geral',client:document.getElementById('f-client').value,type:selType,value,status:'Pendente',temIva,ivaIncluido};
       state.movements.unshift(novo);
       const after = ivaEffectFor(novo);
       applyIvaDelta(0, after);
@@ -2053,8 +2086,15 @@ function openModal(type, clientId){
       <div class="field" id="f-eiva-despesa-wrap" style="display:none;">
         <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:12.5px;color:var(--text);">
           <input type="checkbox" id="f-etemiva" style="width:auto;" ${m.temIva?'checked':''}>
-          Conta para o IVA (dedutível — subtrai ${Math.round(IVA_RATE*100)}% do valor à caixinha do IVA)
+          Conta para o IVA (dedutível — subtrai o IVA do valor à caixinha do IVA)
         </label>
+      </div>
+      <div class="field" id="f-eivaincluido-wrap" style="display:none;">
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:12.5px;color:var(--text);">
+          <input type="checkbox" id="f-eivaincluido" style="width:auto;" ${m.ivaIncluido?'checked':''}>
+          IVA incluído (o valor acima já inclui IVA — se desmarcado, o IVA é acrescentado ao valor)
+        </label>
+        <div id="f-eiva-preview" style="font-size:10.5px;color:var(--muted);margin-top:6px;"></div>
       </div>
       <div class="field"><label>Estado</label><select id="f-estatusmov">
         <option ${m.status==='Pendente'?'selected':''}>Pendente</option>
@@ -2089,14 +2129,31 @@ function openModal(type, clientId){
       }
       return sel.value;
     }
+    function updateEIvaPreview(){
+      const preview = document.getElementById('f-eiva-preview');
+      if(!preview) return;
+      const val = parseFloat(document.getElementById('f-evalue')?.value);
+      if(!val || val<=0){ preview.textContent=''; return; }
+      const incluido = document.getElementById('f-eivaincluido')?.checked;
+      const iva = ivaAmountFor(val, incluido);
+      preview.textContent = incluido
+        ? 'IVA incluído no valor: '+iva.toFixed(2)+'€ (valor sem IVA: '+(val-iva).toFixed(2)+'€)'
+        : 'IVA a acrescentar: '+iva.toFixed(2)+'€ (total com IVA: '+(val+iva).toFixed(2)+'€)';
+    }
     function syncEIvaUI(){
       const t = typeSelectE().value;
       document.getElementById('f-eiva-receita-note').style.display = t==='receita' ? 'block' : 'none';
       document.getElementById('f-eiva-despesa-wrap').style.display = t==='despesa' ? 'block' : 'none';
+      const hasIvaOption = t==='receita' || (t==='despesa' && document.getElementById('f-etemiva')?.checked);
+      document.getElementById('f-eivaincluido-wrap').style.display = hasIvaOption ? 'block' : 'none';
+      updateEIvaPreview();
     }
     renderCatFieldE();
     syncEIvaUI();
     typeSelectE().addEventListener('change', ()=>{ renderCatFieldE(); syncEIvaUI(); });
+    document.getElementById('f-etemiva').addEventListener('change', syncEIvaUI);
+    document.getElementById('f-evalue').addEventListener('input', updateEIvaPreview);
+    document.getElementById('f-eivaincluido').addEventListener('change', updateEIvaPreview);
     submit.onclick = ()=>{
       const desc=document.getElementById('f-edesc').value.trim();
       const value=parseFloat(document.getElementById('f-evalue').value);
@@ -2110,6 +2167,7 @@ function openModal(type, clientId){
       m.value = value;
       m.status = document.getElementById('f-estatusmov').value;
       m.temIva = m.type==='receita' ? true : (m.type==='despesa' ? document.getElementById('f-etemiva').checked : false);
+      m.ivaIncluido = m.temIva ? document.getElementById('f-eivaincluido').checked : false;
       const after = ivaEffectFor(m);
       applyIvaDelta(before, after);
       logActivity('Movimento editado: '+desc);
