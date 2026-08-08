@@ -510,6 +510,18 @@ function renderNav(){
 function pendingMovements(){ return state.movements.filter(m=>m.status==='Pendente').length; }
 function pendingIncomingMovements(){ return state.movements.filter(m=>m.type==='receita' && m.status==='Pendente'); }
 function isRealizedReceita(m){ return m.type==='receita' && m.status==='Pago'; }
+// O valor da receita entra na conta pelo total com IVA: se o utilizador meteu o valor sem IVA (padrão),
+// o IVA é acrescentado ao que conta para o saldo/faturação. Se "IVA incluído" estiver marcado, o valor já é o total.
+function grossReceitaValue(m){
+  if(m.type!=='receita' || !m.temIva) return m.value;
+  return m.ivaIncluido ? m.value : m.value + ivaAmountFor(m.value, false);
+}
+// Valor "sem IVA" — usado para atribuir faturação ao mês/cliente. O IVA nunca conta como receita:
+// é dinheiro que entra na conta mas pertence ao Estado, e fica isolado no "banco de IVA" (ivaAcumulado).
+function netReceitaValue(m){
+  if(m.type!=='receita' || !m.temIva) return m.value;
+  return m.ivaIncluido ? m.value - ivaAmountFor(m.value, true) : m.value;
+}
 function openTasks(){ return state.tasks.filter(t=>t.status!=='done').length; }
 
 function goToView(v){
@@ -721,10 +733,11 @@ function formatShort(iso){
 
 /* ---------------- DASHBOARD ---------------- */
 function computeKpis(){
-  const receitasMes = state.movements.filter(isRealizedReceita).reduce((s,m)=>s+m.value,0) + recurringRevenueMonthlyTotal();
+  const receitasMesBruto = state.movements.filter(isRealizedReceita).reduce((s,m)=>s+grossReceitaValue(m),0) + recurringRevenueMonthlyTotal();
+  const receitasMes = state.movements.filter(isRealizedReceita).reduce((s,m)=>s+netReceitaValue(m),0) + recurringRevenueMonthlyTotal();
   const depositosMes = state.movements.filter(m=>m.type==='deposito' && m.status!=='Cancelado').reduce((s,m)=>s+m.value,0);
   const despesasMes = state.movements.filter(m=>m.type==='despesa' && m.status!=='Cancelado').reduce((s,m)=>s+m.value,0) + fixedCostsMonthlyTotal();
-  const saldo = receitasMes + depositosMes - despesasMes;
+  const saldo = receitasMesBruto + depositosMes - despesasMes;
   const pendentesEntrada = pendingIncomingMovements();
   const pendentesEntradaTotal = pendentesEntrada.reduce((s,m)=>s+m.value,0);
   return {receitasMes,despesasMes,saldo,iva:state.ivaAcumulado,depositosMes,pendentesEntradaTotal,pendentesEntradaCount:pendentesEntrada.length};
@@ -794,7 +807,7 @@ function renderMiniChart(){
     const base = state.movements.filter(mv=>{
       const d = new Date(mv.date+'T00:00:00');
       return d.getFullYear()===mo.y && d.getMonth()===mo.m && isRealizedReceita(mv);
-    }).reduce((s,mv)=>s+mv.value,0);
+    }).reduce((s,mv)=>s+netReceitaValue(mv),0);
     const isCurrent = mo.y===now.getFullYear() && mo.m===now.getMonth();
     return isCurrent ? base + recurringRevenueMonthlyTotal() : base;
   });
@@ -807,7 +820,7 @@ function setFinTab(tab){ state.finTab = tab; saveState(); renderFinanceiro(); }
 function renderFinanceiro(){
   const tab = state.finTab;
   const totalPorCliente = {};
-  state.movements.filter(isRealizedReceita).forEach(m=>{ totalPorCliente[m.client]=(totalPorCliente[m.client]||0)+m.value; });
+  state.movements.filter(isRealizedReceita).forEach(m=>{ totalPorCliente[m.client]=(totalPorCliente[m.client]||0)+netReceitaValue(m); });
   state.clients.forEach(c=>{
     const rec = clientRecurringRevenueTotal(c.name);
     if(rec>0) totalPorCliente[c.name] = (totalPorCliente[c.name]||0) + rec;
@@ -1102,7 +1115,7 @@ function renderClientes(){
   if(state.openClientId) renderClientDetail(state.openClientId);
 }
 function billedTotal(clientName){
-  const fromMovements = state.movements.filter(m=>m.client===clientName && isRealizedReceita(m)).reduce((s,m)=>s+m.value,0);
+  const fromMovements = state.movements.filter(m=>m.client===clientName && isRealizedReceita(m)).reduce((s,m)=>s+netReceitaValue(m),0);
   return fromMovements + clientRecurringRevenueTotal(clientName);
 }
 function renderClientTable(){
@@ -1507,7 +1520,7 @@ function computeMonthlySeriesForClient(clientName, n){
   for(let i=n-1;i>=0;i--){
     const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
     const y=d.getFullYear(), m=d.getMonth();
-    const receita = state.movements.filter(mv=>{const dd=new Date(mv.date+'T00:00:00');return mv.client===clientName && dd.getFullYear()===y&&dd.getMonth()===m&&isRealizedReceita(mv);}).reduce((s,mv)=>s+mv.value,0);
+    const receita = state.movements.filter(mv=>{const dd=new Date(mv.date+'T00:00:00');return mv.client===clientName && dd.getFullYear()===y&&dd.getMonth()===m&&isRealizedReceita(mv);}).reduce((s,mv)=>s+netReceitaValue(mv),0);
     const despesa = state.movements.filter(mv=>{const dd=new Date(mv.date+'T00:00:00');return mv.client===clientName && dd.getFullYear()===y&&dd.getMonth()===m&&mv.type==='despesa'&&mv.status!=='Cancelado';}).reduce((s,mv)=>s+mv.value,0);
     arr.push({label:MONTHS[m].slice(0,3), y, m, receita, despesa});
   }
@@ -1532,7 +1545,7 @@ function computeMonthlySeries(n){
   for(let i=n-1;i>=0;i--){
     const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
     const y=d.getFullYear(), m=d.getMonth();
-    const receita = state.movements.filter(mv=>{const dd=new Date(mv.date+'T00:00:00');return dd.getFullYear()===y&&dd.getMonth()===m&&isRealizedReceita(mv);}).reduce((s,mv)=>s+mv.value,0);
+    const receita = state.movements.filter(mv=>{const dd=new Date(mv.date+'T00:00:00');return dd.getFullYear()===y&&dd.getMonth()===m&&isRealizedReceita(mv);}).reduce((s,mv)=>s+netReceitaValue(mv),0);
     let despesa = state.movements.filter(mv=>{const dd=new Date(mv.date+'T00:00:00');return dd.getFullYear()===y&&dd.getMonth()===m&&mv.type==='despesa'&&mv.status!=='Cancelado';}).reduce((s,mv)=>s+mv.value,0);
     const isCurrent = y===now.getFullYear() && m===now.getMonth();
     let receitaTotal = receita;
@@ -1653,7 +1666,7 @@ function renderAnalise(){
   const pctChange = prev.receita>0 ? Math.round(((cur.receita-prev.receita)/prev.receita)*100) : (cur.receita>0?100:0);
 
   const clientTotals = {};
-  state.movements.filter(isRealizedReceita).forEach(m=>{ clientTotals[m.client]=(clientTotals[m.client]||0)+m.value; });
+  state.movements.filter(isRealizedReceita).forEach(m=>{ clientTotals[m.client]=(clientTotals[m.client]||0)+netReceitaValue(m); });
   const totalReceita = Object.values(clientTotals).reduce((s,v)=>s+v,0);
   const topClientEntry = Object.entries(clientTotals).sort((a,b)=>b[1]-a[1])[0];
   const concentracao = topClientEntry && totalReceita>0 ? Math.round((topClientEntry[1]/totalReceita)*100) : 0;
@@ -1945,7 +1958,7 @@ function openModal(type, clientId){
         <div style="font-size:11.5px;color:var(--muted);line-height:1.5;">Este valor aumenta o saldo da conta, mas <strong style="color:var(--text);">não conta como faturação</strong> — não entra no cálculo de receitas nem de IVA. Útil para entradas de capital, reembolsos ou transferências que não são serviços prestados.</div>
       </div>
       <div class="field" id="f-iva-receita-note" style="display:none;background:rgba(240,168,96,.08);border:1px solid var(--warn);border-radius:9px;padding:10px 12px;">
-        <div style="font-size:11.5px;color:var(--muted);line-height:1.5;">Toda a receita conta <strong style="color:var(--text);">obrigatoriamente</strong> para o IVA. Quando marcares esta receita como "Pago", ${Math.round(IVA_RATE*100)}% do valor soma-se automaticamente à caixinha do IVA.</div>
+        <div style="font-size:11.5px;color:var(--muted);line-height:1.5;">Toda a receita conta <strong style="color:var(--text);">obrigatoriamente</strong> para o IVA. Quando marcares esta receita como "Pago": o valor <strong style="color:var(--text);">sem IVA</strong> conta como faturação (mês e cliente); o valor total (com IVA) entra no saldo da conta; e o IVA exato vai para o "banco de IVA" — dinheiro que entra mas pertence ao Estado, não é receita tua.</div>
       </div>
       <div class="field" id="f-iva-despesa-wrap" style="display:none;">
         <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:12.5px;color:var(--text);">
