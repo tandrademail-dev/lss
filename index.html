@@ -738,9 +738,10 @@ function computeKpis(){
   const depositosMes = state.movements.filter(m=>m.type==='deposito' && m.status!=='Cancelado').reduce((s,m)=>s+m.value,0);
   const despesasMes = state.movements.filter(m=>m.type==='despesa' && m.status!=='Cancelado').reduce((s,m)=>s+m.value,0) + fixedCostsMonthlyTotal();
   const saldo = receitasMesBruto + depositosMes - despesasMes;
+  const saldoReal = saldo - state.ivaAcumulado;
   const pendentesEntrada = pendingIncomingMovements();
   const pendentesEntradaTotal = pendentesEntrada.reduce((s,m)=>s+m.value,0);
-  return {receitasMes,despesasMes,saldo,iva:state.ivaAcumulado,depositosMes,pendentesEntradaTotal,pendentesEntradaCount:pendentesEntrada.length};
+  return {receitasMes,despesasMes,saldo,saldoReal,iva:state.ivaAcumulado,depositosMes,pendentesEntradaTotal,pendentesEntradaCount:pendentesEntrada.length};
 }
 function renderDashboard(){
   const k = computeKpis();
@@ -755,6 +756,7 @@ function renderDashboard(){
       <div class="kpi"><div class="kpi-label">Receitas do mês</div><div class="kpi-value pos">${k.receitasMes.toLocaleString('pt-PT')}€</div><div class="kpi-delta">${state.movements.filter(isRealizedReceita).length} registo(s) faturável(eis) e pago(s) + mensalidades recebidas</div></div>
       <div class="kpi"><div class="kpi-label">Custos do mês</div><div class="kpi-value">${k.despesasMes.toLocaleString('pt-PT')}€</div><div class="kpi-delta">${state.movements.filter(m=>m.type==='despesa'&&m.status!=='Cancelado').length} registo(s) + custos fixos saídos</div></div>
       <div class="kpi"><div class="kpi-label">Saldo atual</div><div class="kpi-value">${k.saldo.toLocaleString('pt-PT')}€</div><div class="kpi-delta">${k.depositosMes>0 ? 'Inclui '+k.depositosMes.toLocaleString('pt-PT')+'€ em depósitos' : 'Baseado nos movimentos registados'}</div></div>
+      <div class="kpi"><div class="kpi-label">Saldo real</div><div class="kpi-value ${k.saldoReal>=0?'':'warn'}">${k.saldoReal.toLocaleString('pt-PT')}€</div><div class="kpi-delta">Saldo atual − ${k.iva.toLocaleString('pt-PT')}€ do banco de IVA · o que é mesmo teu</div></div>
       <div class="kpi">
         <div class="kpi-label">IVA a pagar</div>
         <div class="kpi-value ${k.iva>=0?'warn':'pos'}">${k.iva.toLocaleString('pt-PT')}€</div>
